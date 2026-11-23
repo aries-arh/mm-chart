@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
+    "local": "node server.js --port=4800",
     "build": "node --check server.js",
     "lint": "node --check server.js"
   },

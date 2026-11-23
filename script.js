@@ -300,7 +300,7 @@
     document.querySelector("#exportPngBtn").addEventListener("click", exportPng);
     document.querySelector("#exportCsvBtn").addEventListener("click", exportCsv);
     document.querySelector("#exportExcelBtn").addEventListener("click", exportExcel);
-    document.querySelector("#exportPdfBtn").addEventListener("click", () => window.print());
+    document.querySelector("#exportPdfBtn").addEventListener("click", exportPdf);
 
     document.querySelector("#importCsvBtn").addEventListener("click", () => el.csvFileInput.click());
     el.csvFileInput.addEventListener("change", handleImportCsv);
@@ -1799,29 +1799,46 @@
     });
   }
 
-  function exportPng() {
+  function buildChartCanvas() {
     const resources = getResources();
     if (!resources.length) {
-      showToast("Tidak ada grafik untuk diekspor.", true);
-      return;
+      return null;
     }
 
+    if (state.chartFormat === "timeline") {
+      return renderHorizontalCanvas(resources);
+    }
+    if (state.chartFormat === "table") {
+      return renderTableCanvas(resources);
+    }
+    return renderVerticalCanvas(resources);
+  }
+
+  function renderVerticalCanvas(resources) {
     const metrics = computeMetrics(state);
-    const cycle = getActiveCycle();
     const cycleTime = metrics.cycleTime;
-    const maxEnd = Math.max(cycleTime, ...cycle.activities.map((a) => a.start + a.duration));
-    const timeScale = Math.ceil(maxEnd);
+    const displayCycleCount = state.uiMode === "advanced" ? Math.max(1, state.cycleCount) : 1;
+
+    let maxEnd = cycleTime;
+    state.cycles.slice(0, displayCycleCount).forEach((c) => {
+      c.activities.forEach((a) => {
+        maxEnd = Math.max(maxEnd, a.start + a.duration);
+      });
+    });
+    const timeScale = Math.max(cycleTime, Math.ceil(maxEnd));
 
     const scale = 2;
-    const colW = 200;
-    const axisW = 80;
-    const headerH = 128;
+    const totalCols = displayCycleCount * resources.length;
+    const colW = 190;
+    const axisW = 82;
+    const headerH = 122;
+    const cycleHeadH = displayCycleCount > 1 ? 32 : 0;
     const colHeadH = 54;
-    const plotH = Math.max(460, timeScale * 8);
+    const plotH = Math.max(460, Math.min(4800, timeScale * 8));
     const legendH = 66;
     const pad = 28;
-    const width = Math.max(760, pad * 2 + axisW + resources.length * colW);
-    const height = headerH + colHeadH + plotH + legendH + pad;
+    const width = Math.max(760, pad * 2 + axisW + totalCols * colW);
+    const height = headerH + cycleHeadH + colHeadH + plotH + legendH + pad;
 
     const canvas = document.createElement("canvas");
     canvas.width = width * scale;
@@ -1829,63 +1846,65 @@
     const ctx = canvas.getContext("2d");
     ctx.scale(scale, scale);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
+    drawCanvasHeader(ctx, width, height, pad, metrics, "Grafik Vertikal");
 
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "700 20px 'Plus Jakarta Sans', Arial, sans-serif";
-    ctx.fillText(state.processName.trim() || "EasyMMC — Man-Machine Chart", pad, 38);
-
-    ctx.fillStyle = "#475569";
-    ctx.font = "500 13px 'Plus Jakarta Sans', Arial, sans-serif";
-    ctx.fillText(
-      `Total Siklus: ${formatNumber(cycleTime)} ${state.timeUnit}   ·   Kesibukan Operator: ${formatNumber(metrics.humanUtil)}%   ·   Kesibukan Mesin: ${formatNumber(metrics.machineUtil)}%   ·   Kapasitas: ±${formatNumber(metrics.unitsPerHour)} unit/jam`,
-      pad,
-      64
-    );
-
-    ctx.strokeStyle = "#cbd5e1";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad, 82);
-    ctx.lineTo(width - pad, 82);
-    ctx.stroke();
-
-    const plotTop = headerH + colHeadH;
     const plotLeft = pad + axisW;
+    const colHeadTop = headerH + cycleHeadH;
+    const plotTop = colHeadTop + colHeadH;
 
-    resources.forEach((res, i) => {
-      const x = plotLeft + i * colW;
-      ctx.fillStyle = "#f8fafc";
-      ctx.fillRect(x, headerH, colW, colHeadH);
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.strokeRect(x, headerH, colW, colHeadH);
-
-      const stat = metrics.resourceStats.find((s) => s.name === res.name && s.type === res.type);
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "700 13px 'Plus Jakarta Sans', Arial, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(res.name, x + colW / 2, headerH + 22);
-      ctx.fillStyle = "#64748b";
-      ctx.font = "500 11px 'IBM Plex Mono', monospace";
-      ctx.fillText(`${formatNumber(stat?.utilization || 0)}% sibuk`, x + colW / 2, headerH + 40);
-    });
-
+    // Y-axis corner
     ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(pad, headerH, axisW, colHeadH);
-    ctx.strokeRect(pad, headerH, axisW, colHeadH);
+    ctx.fillRect(pad, headerH, axisW, cycleHeadH + colHeadH);
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.strokeRect(pad, headerH, axisW, cycleHeadH + colHeadH);
     ctx.fillStyle = "#475569";
     ctx.font = "700 11px 'Plus Jakarta Sans', Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`Waktu (${state.timeUnit})`, pad + axisW / 2, headerH + 31);
+    ctx.fillText(`Waktu (${state.timeUnit})`, pad + axisW / 2, headerH + (cycleHeadH + colHeadH) / 2 + 4);
 
-    const tickStep = timeScale <= 30 ? 5 : timeScale <= 120 ? 10 : 30;
+    // Cycle & Resource headers
+    for (let cIdx = 0; cIdx < displayCycleCount; cIdx += 1) {
+      const cycle = state.cycles[cIdx] || { start: 0, activities: [] };
+      const cycleX = plotLeft + cIdx * resources.length * colW;
+      const cycleW = resources.length * colW;
+
+      if (displayCycleCount > 1) {
+        ctx.fillStyle = "#eff6ff";
+        ctx.fillRect(cycleX, headerH, cycleW, cycleHeadH);
+        ctx.strokeStyle = "#bfdbfe";
+        ctx.strokeRect(cycleX, headerH, cycleW, cycleHeadH);
+        ctx.fillStyle = "#1d4ed8";
+        ctx.font = "700 12px 'Plus Jakarta Sans', Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`Siklus ${cIdx + 1} (Mulai ${formatNumber(cycle.start)} ${state.timeUnit})`, cycleX + cycleW / 2, headerH + 20);
+      }
+
+      resources.forEach((res, rIdx) => {
+        const x = cycleX + rIdx * colW;
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(x, colHeadTop, colW, colHeadH);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.strokeRect(x, colHeadTop, colW, colHeadH);
+
+        const stat = metrics.resourceStats.find((s) => s.name === res.name && s.type === res.type);
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "700 13px 'Plus Jakarta Sans', Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(res.name, x + colW / 2, colHeadTop + 22);
+        ctx.fillStyle = "#64748b";
+        ctx.font = "500 11px 'IBM Plex Mono', monospace";
+        ctx.fillText(`${formatNumber(stat?.utilization || 0)}% sibuk`, x + colW / 2, colHeadTop + 40);
+      });
+    }
+
+    // Y-axis ticks & grid lines
+    const tickStep = timeScale <= 30 ? 5 : timeScale <= 120 ? 10 : timeScale <= 300 ? 30 : 60;
     for (let t = 0; t <= timeScale; t += tickStep) {
       const y = plotTop + (t / timeScale) * plotH;
       ctx.strokeStyle = "#e2e8f0";
       ctx.beginPath();
       ctx.moveTo(plotLeft, y);
-      ctx.lineTo(plotLeft + resources.length * colW, y);
+      ctx.lineTo(plotLeft + totalCols * colW, y);
       ctx.stroke();
 
       ctx.fillStyle = "#64748b";
@@ -1894,48 +1913,346 @@
       ctx.fillText(formatNumber(t), plotLeft - 10, y + 4);
     }
 
-    resources.forEach((res, i) => {
-      const colX = plotLeft + i * colW;
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.strokeRect(colX, plotTop, colW, plotH);
+    // Columns, Idle gaps, and Bars
+    for (let cIdx = 0; cIdx < displayCycleCount; cIdx += 1) {
+      const cycle = state.cycles[cIdx] || { start: 0, activities: [] };
+      resources.forEach((res, rIdx) => {
+        const colX = plotLeft + (cIdx * resources.length + rIdx) * colW;
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.strokeRect(colX, plotTop, colW, plotH);
 
-      const stat = metrics.resourceStats.find((s) => s.name === res.name && s.type === res.type);
-      (stat?.gaps || []).forEach((g) => {
-        const gy = plotTop + (g.start / timeScale) * plotH;
-        const gh = ((g.end - g.start) / timeScale) * plotH;
-        ctx.fillStyle = "#eef2f6";
-        ctx.fillRect(colX + 12, gy, colW - 24, gh);
-        if (gh >= 20) {
-          ctx.fillStyle = "#64748b";
-          ctx.font = "500 10px 'Plus Jakarta Sans', Arial, sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(`Kosong ${formatNumber(g.duration)}`, colX + colW / 2, gy + gh / 2 + 4);
+        const resBars = cycle.activities
+          .filter((a) => a.resourceType === res.type && a.resourceName === res.name && a.duration > 0)
+          .sort((a, b) => a.start - b.start);
+
+        const activeIntervals = resBars
+          .filter((a) => a.category !== "waiting")
+          .map((a) => [Math.max(0, a.start), Math.min(cycleTime, a.start + a.duration)]);
+        const merged = mergeIntervals(activeIntervals);
+        const gaps = [];
+        let cursor = 0;
+        merged.forEach(([s, e]) => {
+          if (s > cursor + 0.25) gaps.push({ start: cursor, end: s, duration: s - cursor });
+          cursor = Math.max(cursor, e);
+        });
+        if (cursor + 0.25 < cycleTime) {
+          gaps.push({ start: cursor, end: cycleTime, duration: cycleTime - cursor });
         }
-      });
 
-      cycle.activities
-        .filter((a) => a.resourceType === res.type && a.resourceName === res.name && a.duration > 0)
-        .forEach((act) => {
+        gaps.forEach((g) => {
+          const gy = plotTop + (g.start / timeScale) * plotH;
+          const gh = ((g.end - g.start) / timeScale) * plotH;
+          ctx.fillStyle = "#eef2f6";
+          ctx.fillRect(colX + 12, gy, colW - 24, gh);
+          ctx.save();
+          ctx.setLineDash([4, 3]);
+          ctx.strokeStyle = "#cbd5e1";
+          ctx.strokeRect(colX + 12, gy, colW - 24, gh);
+          ctx.restore();
+          if (gh >= 20) {
+            ctx.fillStyle = "#64748b";
+            ctx.font = "500 10px 'Plus Jakarta Sans', Arial, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(`Kosong ${formatNumber(g.duration)}`, colX + colW / 2, gy + gh / 2 + 4);
+          }
+        });
+
+        resBars.forEach((act) => {
           const by = plotTop + (act.start / timeScale) * plotH;
-          const bh = Math.max(16, (act.duration / timeScale) * plotH);
-          const color = act.category === "waiting" ? "#cbd5e1" : (CATEGORY_META[act.category]?.color || "#2563eb");
+          const bh = Math.max(18, (act.duration / timeScale) * plotH);
+          const color = act.category === "waiting" ? "#e2e8f0" : (CATEGORY_META[act.category]?.color || "#2563eb");
+          const absStart = cycle.start + act.start;
+          const absEnd = absStart + act.duration;
 
           ctx.fillStyle = color;
           roundRect(ctx, colX + 12, by, colW - 24, bh, 6);
           ctx.fill();
 
+          if (act.category === "waiting") {
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.stroke();
+          }
+
           ctx.fillStyle = act.category === "waiting" ? "#0f172a" : "#ffffff";
           ctx.textAlign = "center";
           ctx.font = "700 11px 'Plus Jakarta Sans', Arial, sans-serif";
-          ctx.fillText(truncateText(act.name, 22), colX + colW / 2, by + bh / 2 - (bh > 28 ? 3 : -4));
-          if (bh > 28) {
+          ctx.fillText(truncateText(act.name, 22), colX + colW / 2, by + bh / 2 - (bh > 30 ? 3 : -4));
+          if (bh > 30) {
             ctx.font = "500 10px 'IBM Plex Mono', monospace";
-            ctx.fillText(`${formatNumber(act.duration)} ${state.timeUnit}`, colX + colW / 2, by + bh / 2 + 12);
+            ctx.fillText(`${formatNumber(act.duration)} ${state.timeUnit === "detik" ? "s" : "m"} · ${formatNumber(absStart)}–${formatNumber(absEnd)}`, colX + colW / 2, by + bh / 2 + 12);
           }
         });
+      });
+    }
+
+    drawCanvasLegend(ctx, pad, plotTop + plotH + 30);
+    return canvas;
+  }
+
+  function renderHorizontalCanvas(resources) {
+    const metrics = computeMetrics(state);
+    const cycleTime = metrics.cycleTime;
+    const cycleCount = state.uiMode === "advanced" ? Math.max(1, state.cycleCount) : 1;
+
+    let maxEnd = cycleTime;
+    state.cycles.slice(0, cycleCount).forEach((c) => {
+      c.activities.forEach((a) => {
+        maxEnd = Math.max(maxEnd, c.start + a.start + a.duration);
+      });
+    });
+    const totalTimeline = Math.max(cycleTime, Math.ceil(maxEnd));
+
+    const scale = 2;
+    const pad = 28;
+    const labelW = 140;
+    const headerH = 122;
+    const axisH = 38;
+    const cycleTitleH = 30;
+    const laneH = 54;
+    const legendH = 66;
+    const timelineW = Math.max(700, Math.min(5000, totalTimeline * 14));
+    const totalLanesH = cycleCount * (cycleTitleH + resources.length * laneH);
+    const width = pad * 2 + labelW + timelineW;
+    const height = headerH + axisH + totalLanesH + legendH + pad;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+
+    drawCanvasHeader(ctx, width, height, pad, metrics, "Timeline Horizontal");
+
+    const plotLeft = pad + labelW;
+    const axisTop = headerH;
+    const bodyTop = axisTop + axisH;
+
+    // Axis header
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(pad, axisTop, labelW, axisH);
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.strokeRect(pad, axisTop, labelW, axisH);
+    ctx.fillStyle = "#475569";
+    ctx.font = "700 12px 'Plus Jakarta Sans', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Pelaku Kerja", pad + labelW / 2, axisTop + 23);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(plotLeft, axisTop, timelineW, axisH);
+    ctx.strokeRect(plotLeft, axisTop, timelineW, axisH);
+
+    const tickStep = totalTimeline <= 60 ? 5 : totalTimeline <= 180 ? 10 : 30;
+    for (let t = 0; t <= totalTimeline; t += tickStep) {
+      const x = plotLeft + (t / totalTimeline) * timelineW;
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.moveTo(x, axisTop + axisH);
+      ctx.lineTo(x, bodyTop + totalLanesH);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#94a3b8";
+      ctx.beginPath();
+      ctx.moveTo(x, axisTop);
+      ctx.lineTo(x, axisTop + 10);
+      ctx.stroke();
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = "500 11px 'IBM Plex Mono', monospace";
+      ctx.textAlign = t === 0 ? "left" : t >= totalTimeline ? "right" : "center";
+      ctx.fillText(formatNumber(t), x, axisTop + 26);
+    }
+
+    let cursorY = bodyTop;
+    for (let c = 0; c < cycleCount; c += 1) {
+      const cycle = state.cycles[c] || { start: c * cycleTime, activities: [] };
+      ctx.fillStyle = "#eff6ff";
+      ctx.fillRect(pad, cursorY, labelW + timelineW, cycleTitleH);
+      ctx.strokeStyle = "#bfdbfe";
+      ctx.strokeRect(pad, cursorY, labelW + timelineW, cycleTitleH);
+      ctx.fillStyle = "#1d4ed8";
+      ctx.font = "700 12px 'Plus Jakarta Sans', Arial, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(`Siklus ${c + 1} (Mulai ${formatNumber(cycle.start)} ${state.timeUnit})`, pad + 12, cursorY + 19);
+      cursorY += cycleTitleH;
+
+      resources.forEach((res) => {
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(pad, cursorY, labelW, laneH);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.strokeRect(pad, cursorY, labelW, laneH);
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "700 12px 'Plus Jakarta Sans', Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(res.name, pad + labelW / 2, cursorY + 31);
+
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.strokeRect(plotLeft, cursorY, timelineW, laneH);
+
+        // Idle backdrop for cycle duration
+        const idleX = plotLeft + (cycle.start / totalTimeline) * timelineW;
+        const idleW = Math.min(timelineW - (cycle.start / totalTimeline) * timelineW, (cycleTime / totalTimeline) * timelineW);
+        if (idleW > 0) {
+          ctx.fillStyle = "#eef2f6";
+          ctx.fillRect(idleX, cursorY + 9, idleW, laneH - 18);
+          ctx.save();
+          ctx.setLineDash([4, 3]);
+          ctx.strokeStyle = "#cbd5e1";
+          ctx.strokeRect(idleX, cursorY + 9, idleW, laneH - 18);
+          ctx.restore();
+        }
+
+        // Activity bars
+        cycle.activities
+          .filter((a) => a.resourceType === res.type && a.resourceName === res.name && a.duration > 0)
+          .forEach((act) => {
+            const absStart = cycle.start + act.start;
+            const bx = plotLeft + (absStart / totalTimeline) * timelineW;
+            const bw = Math.max(8, (act.duration / totalTimeline) * timelineW);
+            const by = cursorY + 9;
+            const bh = laneH - 18;
+            const color = act.category === "waiting" ? "#e2e8f0" : (CATEGORY_META[act.category]?.color || "#2563eb");
+
+            ctx.fillStyle = color;
+            roundRect(ctx, bx, by, bw, bh, 6);
+            ctx.fill();
+            if (act.category === "waiting") {
+              ctx.strokeStyle = "#cbd5e1";
+              ctx.stroke();
+            }
+
+            if (bw >= 38) {
+              ctx.fillStyle = act.category === "waiting" ? "#0f172a" : "#ffffff";
+              ctx.textAlign = "left";
+              ctx.font = "700 11px 'Plus Jakarta Sans', Arial, sans-serif";
+              const maxChars = Math.max(4, Math.floor((bw - 12) / 6.5));
+              ctx.fillText(truncateText(act.name, maxChars), bx + 6, by + 15);
+              ctx.font = "500 10px 'IBM Plex Mono', monospace";
+              ctx.fillText(`${formatNumber(act.duration)} ${state.timeUnit === "detik" ? "s" : "m"}`, bx + 6, by + 29);
+            }
+          });
+
+        cursorY += laneH;
+      });
+    }
+
+    drawCanvasLegend(ctx, pad, bodyTop + totalLanesH + 30);
+    return canvas;
+  }
+
+  function renderTableCanvas(resources) {
+    const metrics = computeMetrics(state);
+    const activities = getActiveCycle().activities;
+    const scale = 2;
+    const pad = 28;
+    const width = 880;
+    const headerH = 122;
+    const rowH = 34;
+    const statSectionH = 42 + Math.max(1, metrics.resourceStats.length) * rowH + 24;
+    const actSectionH = 42 + Math.max(1, activities.length) * rowH + 24;
+    const height = headerH + statSectionH + actSectionH + pad;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+
+    drawCanvasHeader(ctx, width, height, pad, metrics, "Tabel Angka");
+
+    let y = headerH;
+    const tableW = width - pad * 2;
+
+    // Resource summary table
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 14px 'Plus Jakarta Sans', Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("Ringkasan Kesibukan Pelaku Kerja", pad, y + 14);
+    y += 26;
+
+    const statCols = [220, 140, 160, 160, tableW - 680];
+    const statHeaders = ["Pelaku Kerja", "Jenis", "Waktu Kerja", "Menganggur", "Kesibukan (%)"];
+    drawTableRow(ctx, pad, y, rowH, statCols, statHeaders, true);
+    y += rowH;
+
+    metrics.resourceStats.forEach((r) => {
+      drawTableRow(ctx, pad, y, rowH, statCols, [
+        r.name,
+        r.type === "human" ? "Operator" : "Mesin",
+        `${formatNumber(r.workTime)} ${state.timeUnit}`,
+        `${formatNumber(r.idleTime)} ${state.timeUnit}`,
+        `${formatNumber(r.utilization)}%`
+      ], false);
+      y += rowH;
     });
 
-    const legY = plotTop + plotH + 28;
+    y += 28;
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 14px 'Plus Jakarta Sans', Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`Daftar Langkah Kerja — Siklus ${state.activeCycleIndex + 1} (${resources.length} Pelaku)`, pad, y + 14);
+    y += 26;
+
+    const actCols = [240, 150, 170, 130, tableW - 690];
+    drawTableRow(ctx, pad, y, rowH, actCols, ["Aktivitas", "Pelaku", "Kategori", "Mulai", "Durasi"], true);
+    y += rowH;
+
+    activities.forEach((a) => {
+      drawTableRow(ctx, pad, y, rowH, actCols, [
+        truncateText(a.name, 30),
+        a.resourceName,
+        CATEGORY_META[a.category]?.short || a.category,
+        `${formatNumber(a.start)} ${state.timeUnit}`,
+        `${formatNumber(a.duration)} ${state.timeUnit}`
+      ], false);
+      y += rowH;
+    });
+
+    return canvas;
+  }
+
+  function drawTableRow(ctx, x, y, h, colWidths, cells, isHeader) {
+    let cx = x;
+    cells.forEach((txt, i) => {
+      const w = colWidths[i];
+      ctx.fillStyle = isHeader ? "#f8fafc" : "#ffffff";
+      ctx.fillRect(cx, y, w, h);
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.strokeRect(cx, y, w, h);
+
+      ctx.fillStyle = isHeader ? "#475569" : "#0f172a";
+      ctx.font = isHeader ? "700 12px 'Plus Jakarta Sans', Arial, sans-serif" : "500 12px 'Plus Jakarta Sans', Arial, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(String(txt), cx + 10, y + 21);
+      cx += w;
+    });
+  }
+
+  function drawCanvasHeader(ctx, width, height, pad, metrics, modeLabel) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 20px 'Plus Jakarta Sans', Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`${state.processName.trim() || "EasyMMC — Man-Machine Chart"}`, pad, 38);
+
+    ctx.fillStyle = "#475569";
+    ctx.font = "500 13px 'Plus Jakarta Sans', Arial, sans-serif";
+    ctx.fillText(
+      `Tampilan: ${modeLabel}   ·   Siklus: ${formatNumber(metrics.cycleTime)} ${state.timeUnit}   ·   Operator: ${formatNumber(metrics.humanUtil)}%   ·   Mesin: ${formatNumber(metrics.machineUtil)}%   ·   Kapasitas: ±${formatNumber(metrics.unitsPerHour)} unit/jam`,
+      pad,
+      64
+    );
+
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, 84);
+    ctx.lineTo(width - pad, 84);
+    ctx.stroke();
+  }
+
+  function drawCanvasLegend(ctx, pad, legY) {
     const legendItems = [
       { label: "Kerja Mandiri", color: "#16a34a" },
       { label: "Kerja di Mesin", color: "#2563eb" },
@@ -1952,17 +2269,117 @@
       ctx.fillText(item.label, lx + 18, legY);
       lx += ctx.measureText(item.label).width + 44;
     });
+  }
 
+  function exportPng() {
+    const canvas = buildChartCanvas();
+    if (!canvas) {
+      showToast("Tidak ada grafik untuk diekspor.", true);
+      return;
+    }
     canvas.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${slugify(state.processName)}-easymmc.png`;
+      a.download = `${slugify(state.processName)}-${state.chartFormat}.png`;
       a.click();
-      URL.revokeObjectURL(url);
-      showToast("Gambar PNG siap cetak berhasil diunduh.");
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const label = state.chartFormat === "timeline" ? "Timeline Horizontal" : state.chartFormat === "table" ? "Tabel Angka" : "Grafik Vertikal";
+      showToast(`Gambar PNG (${label}) berhasil diunduh.`);
     }, "image/png");
+  }
+
+  function exportPdf() {
+    const canvas = buildChartCanvas();
+    if (!canvas) {
+      showToast("Tidak ada grafik untuk diekspor ke PDF.", true);
+      return;
+    }
+
+    try {
+      const pdfBytes = buildPdfFromCanvas(canvas);
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slugify(state.processName)}-${state.chartFormat}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("File PDF siap cetak berhasil diunduh.");
+    } catch {
+      showToast("Gagal membuat file PDF.", true);
+    }
+  }
+
+  function buildPdfFromCanvas(canvas) {
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
+    const base64 = dataUrl.split(",")[1];
+    const bin = atob(base64);
+    const imgBytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) {
+      imgBytes[i] = bin.charCodeAt(i);
+    }
+
+    const logicalW = canvas.width / 2;
+    const logicalH = canvas.height / 2;
+    const margin = 24;
+    const contentW = Math.round(logicalW * 0.75);
+    const contentH = Math.round(logicalH * 0.75);
+    const ptW = Math.max(595, contentW + margin * 2);
+    const ptH = Math.max(420, contentH + margin * 2);
+    const availW = ptW - margin * 2;
+    const availH = ptH - margin * 2;
+    const fitScale = Math.min(availW / logicalW, availH / logicalH);
+    const drawW = logicalW * fitScale;
+    const drawH = logicalH * fitScale;
+    const drawX = margin + (availW - drawW) / 2;
+    const drawY = ptH - margin - drawH;
+
+    const enc = new TextEncoder();
+    const chunks = [];
+    const offsets = [0];
+    let byteLen = 0;
+
+    const pushBytes = (u8) => {
+      chunks.push(u8);
+      byteLen += u8.length;
+    };
+    const pushStr = (s) => pushBytes(enc.encode(s));
+
+    pushBytes(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xff, 0xff, 0xff, 0xff, 0x0a]));
+
+    const addObj = (id, bodyStr) => {
+      offsets[id] = byteLen;
+      pushStr(`${id} 0 obj\n${bodyStr}\nendobj\n`);
+    };
+
+    addObj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    addObj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    addObj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${ptW} ${ptH}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>`);
+
+    const contentStream = `q\n${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${drawX.toFixed(2)} ${drawY.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+    addObj(4, `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`);
+
+    offsets[5] = byteLen;
+    pushStr(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgBytes.length} >>\nstream\n`);
+    pushBytes(imgBytes);
+    pushStr("\nendstream\nendobj\n");
+
+    const xrefStart = byteLen;
+    pushStr(`xref\n0 6\n0000000000 65535 f \n`);
+    for (let i = 1; i <= 5; i += 1) {
+      pushStr(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+    }
+    pushStr(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+
+    const out = new Uint8Array(byteLen);
+    let pos = 0;
+    chunks.forEach((c) => {
+      out.set(c, pos);
+      pos += c.length;
+    });
+    return out;
   }
 
   function roundRect(ctx, x, y, w, h, r) {
@@ -1980,7 +2397,106 @@
   }
 
   function exportCsv() {
-    const rows = [["Siklus", "Urut", "Aktivitas", "Kategori", "Pelaku", "JenisPelaku", "Mulai", "Durasi", "Satuan"]];
+    const metrics = computeMetrics(state);
+    const resources = getResources();
+    const unit = state.timeUnit;
+    const cycleCount = state.uiMode === "advanced" ? Math.max(1, state.cycleCount) : 1;
+
+    const rows = [
+      ["RINGKASAN PROSES", state.processName || "EasyMMC"],
+      ["Target 1 Siklus", `${formatNumber(metrics.cycleTime)} ${unit}`],
+      ["Kesibukan Operator", `${formatNumber(metrics.humanUtil)}%`],
+      ["Kesibukan Mesin", `${formatNumber(metrics.machineUtil)}%`],
+      ["Kapasitas Produksi", `${formatNumber(metrics.unitsPerHour)} unit/jam`],
+      []
+    ];
+
+    if (state.chartFormat === "vertical") {
+      let maxEnd = metrics.cycleTime;
+      state.cycles.slice(0, cycleCount).forEach((c) => {
+        c.activities.forEach((a) => {
+          maxEnd = Math.max(maxEnd, a.start + a.duration);
+        });
+      });
+      const timeScale = Math.max(1, Math.ceil(maxEnd));
+
+      const matrixHead = [`Waktu (${unit})`];
+      for (let c = 0; c < cycleCount; c += 1) {
+        resources.forEach((r) => {
+          matrixHead.push(cycleCount > 1 ? `Siklus ${c + 1} - ${r.name}` : r.name);
+        });
+      }
+      rows.push(["MATRIKS GRAFIK VERTIKAL (ATAS KE BAWAH)"]);
+      rows.push(matrixHead);
+
+      for (let t = 0; t < timeScale; t += 1) {
+        const line = [`${t}-${t + 1}`];
+        for (let c = 0; c < cycleCount; c += 1) {
+          const acts = state.cycles[c]?.activities || [];
+          resources.forEach((r) => {
+            const match = acts.find((a) => (
+              a.resourceType === r.type &&
+              a.resourceName === r.name &&
+              t < (a.start + a.duration) &&
+              (t + 1) > a.start
+            ));
+            line.push(match ? `${match.name} (${CATEGORY_META[match.category]?.short || match.category})` : "Kosong");
+          });
+        }
+        rows.push(line);
+      }
+      rows.push([]);
+    } else if (state.chartFormat === "timeline") {
+      let maxEnd = metrics.cycleTime;
+      state.cycles.slice(0, cycleCount).forEach((c) => {
+        c.activities.forEach((a) => {
+          maxEnd = Math.max(maxEnd, c.start + a.start + a.duration);
+        });
+      });
+      const totalTimeline = Math.max(1, Math.ceil(maxEnd));
+
+      const matrixHead = ["Siklus", "Pelaku Kerja"];
+      for (let t = 0; t < totalTimeline; t += 1) {
+        matrixHead.push(`${t}-${t + 1} ${unit}`);
+      }
+      rows.push(["MATRIKS TIMELINE HORIZONTAL"]);
+      rows.push(matrixHead);
+
+      for (let c = 0; c < cycleCount; c += 1) {
+        const cycle = state.cycles[c] || { start: c * metrics.cycleTime, activities: [] };
+        resources.forEach((r) => {
+          const line = [`Siklus ${c + 1}`, r.name];
+          for (let t = 0; t < totalTimeline; t += 1) {
+            const match = cycle.activities.find((a) => (
+              a.resourceType === r.type &&
+              a.resourceName === r.name &&
+              t < (cycle.start + a.start + a.duration) &&
+              (t + 1) > (cycle.start + a.start)
+            ));
+            const inCycle = t >= cycle.start && t < (cycle.start + metrics.cycleTime);
+            line.push(match ? match.name : (inCycle ? "Kosong" : ""));
+          }
+          rows.push(line);
+        });
+      }
+      rows.push([]);
+    }
+
+    rows.push(["RINGKASAN KESIBUKAN PELAKU"]);
+    rows.push(["Pelaku Kerja", "Jenis", `Kerja Aktif (${unit})`, `Menganggur (${unit})`, "Kesibukan (%)"]);
+    metrics.resourceStats.forEach((r) => {
+      rows.push([
+        r.name,
+        r.type === "human" ? "Operator" : "Mesin",
+        formatNumber(r.workTime),
+        formatNumber(r.idleTime),
+        `${formatNumber(r.utilization)}%`
+      ]);
+    });
+    rows.push([]);
+
+    rows.push(["DATA LANGKAH KERJA"]);
+    rows.push(["Siklus", "Urut", "Aktivitas", "Kategori", "Pelaku", "JenisPelaku", "Mulai", "Durasi", "Satuan"]);
     state.cycles.forEach((c, cIdx) => {
       c.activities.forEach((a, idx) => {
         rows.push([
@@ -1997,9 +2513,9 @@
       });
     });
 
-    const csvContent = rows.map((r) => r.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    downloadFile("\uFEFF" + csvContent, `${slugify(state.processName)}.csv`, "text/csv;charset=utf-8;");
-    showToast("File CSV berhasil diunduh.");
+    const csvContent = rows.map((r) => r.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+    downloadFile("\uFEFF" + csvContent, `${slugify(state.processName)}-${state.chartFormat}.csv`, "text/csv;charset=utf-8;");
+    showToast("File CSV lengkap dengan matriks grafik berhasil diunduh.");
   }
 
   function handleImportCsv(e) {
@@ -2008,12 +2524,19 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const lines = String(reader.result || "").split(/\r?\n/).filter((l) => l.trim());
+        const lines = String(reader.result || "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
         if (lines.length < 2) throw new Error("Kosong");
+
+        let startIdx = lines.findIndex((line) => {
+          const cols = parseCsvLine(line);
+          return cols[0] === "Siklus" && cols[1] === "Urut" && cols[2] === "Aktivitas";
+        });
+        if (startIdx < 0) startIdx = 0;
+
         const parsedActivities = [];
-        for (let i = 1; i < lines.length; i += 1) {
+        for (let i = startIdx + 1; i < lines.length; i += 1) {
           const cols = parseCsvLine(lines[i]);
-          if (cols.length < 8) continue;
+          if (cols.length < 8 || isNaN(Number(cols[6]))) continue;
           parsedActivities.push(normalizeActivity({
             name: cols[2],
             category: cols[3],
@@ -2063,7 +2586,7 @@
     const resources = getResources();
     const unit = state.timeUnit;
     const cycleTime = metrics.cycleTime;
-    const cycleCount = state.uiMode === "advanced" ? state.cycleCount : 1;
+    const cycleCount = state.uiMode === "advanced" ? Math.max(1, state.cycleCount) : 1;
 
     const statRows = metrics.resourceStats.map((r) => `
       <tr>
@@ -2075,31 +2598,138 @@
       </tr>
     `).join("");
 
-    const actRows = [];
-    for (let c = 0; c < cycleCount; c += 1) {
-      const cyc = state.cycles[c];
-      if (!cyc) continue;
-      cyc.activities.forEach((a) => {
-        const bg = CATEGORY_META[a.category]?.color || "#2563eb";
-        const fg = a.category === "waiting" ? "#0f172a" : "#ffffff";
-        actRows.push(`
-          <tr>
-            <td style="border:1px solid #cbd5e1;padding:6px;text-align:center;">Siklus ${c + 1}</td>
-            <td style="border:1px solid #cbd5e1;padding:6px;">${escapeHtml(a.resourceName)}</td>
-            <td style="border:1px solid #cbd5e1;padding:6px;background:${bg};color:${fg};font-weight:bold;">${escapeHtml(CATEGORY_META[a.category]?.label || a.category)}</td>
-            <td style="border:1px solid #cbd5e1;padding:6px;">${escapeHtml(a.name)}</td>
-            <td style="border:1px solid #cbd5e1;padding:6px;text-align:right;">${formatNumber(cyc.start + a.start)}</td>
-            <td style="border:1px solid #cbd5e1;padding:6px;text-align:right;">${formatNumber(a.duration)}</td>
-          </tr>
-        `);
+    let visualGridHtml = "";
+    if (state.chartFormat === "timeline") {
+      let maxEnd = cycleTime;
+      state.cycles.slice(0, cycleCount).forEach((c) => {
+        c.activities.forEach((a) => { maxEnd = Math.max(maxEnd, c.start + a.start + a.duration); });
       });
+      const totalTime = Math.max(1, Math.ceil(maxEnd));
+      const timeHeads = Array.from({ length: totalTime }, (_, t) => (
+        `<th style="width:26px;background:#ffffff;color:#64748b;border:1px solid #cbd5e1;text-align:center;font-size:9px;">${t}</th>`
+      )).join("");
+
+      const laneRows = [];
+      for (let c = 0; c < cycleCount; c += 1) {
+        const cyc = state.cycles[c] || { start: c * cycleTime, activities: [] };
+        laneRows.push(`<tr><td colspan="${totalTime + 1}" style="background:#eff6ff;color:#1d4ed8;font-weight:bold;padding:6px;border:1px solid #bfdbfe;">Siklus ${c + 1} (Mulai ${formatNumber(cyc.start)} ${unit})</td></tr>`);
+        resources.forEach((res) => {
+          const cells = [];
+          let t = 0;
+          while (t < totalTime) {
+            const active = cyc.activities.find((a) => (
+              a.resourceType === res.type && a.resourceName === res.name &&
+              t >= Math.floor(cyc.start + a.start) && t < Math.ceil(cyc.start + a.start + a.duration)
+            ));
+            if (active) {
+              const spanEnd = Math.min(totalTime, Math.max(t + 1, Math.ceil(cyc.start + active.start + active.duration)));
+              const span = spanEnd - t;
+              const bg = active.category === "waiting" ? "#e2e8f0" : (CATEGORY_META[active.category]?.color || "#2563eb");
+              const fg = active.category === "waiting" ? "#0f172a" : "#ffffff";
+              cells.push(`<td colspan="${span}" style="background:${bg};color:${fg};font-weight:bold;border:1px solid #ffffff;padding:4px;text-align:center;">${escapeHtml(active.name)} (${formatNumber(active.duration)} ${unit})</td>`);
+              t = spanEnd;
+            } else {
+              const inCycle = t >= cyc.start && t < (cyc.start + cycleTime);
+              cells.push(`<td style="background:${inCycle ? "#eef2f6" : "#ffffff"};border:1px solid #e2e8f0;"></td>`);
+              t += 1;
+            }
+          }
+          laneRows.push(`<tr style="height:30px;"><td style="background:#f8fafc;border:1px solid #cbd5e1;font-weight:bold;padding:6px;">${escapeHtml(res.name)}</td>${cells.join("")}</tr>`);
+        });
+      }
+
+      visualGridHtml = `
+        <h3>Grafik Timeline Horizontal</h3>
+        <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:10px;table-layout:fixed;margin-bottom:18px;">
+          <tr><th style="width:120px;background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Pelaku</th>${timeHeads}</tr>
+          ${laneRows.join("")}
+        </table>
+      `;
+    } else if (state.chartFormat === "vertical") {
+      let maxEnd = cycleTime;
+      state.cycles.slice(0, cycleCount).forEach((c) => {
+        c.activities.forEach((a) => { maxEnd = Math.max(maxEnd, a.start + a.duration); });
+      });
+      const timeScale = Math.max(1, Math.ceil(maxEnd));
+      const columns = [];
+      for (let c = 0; c < cycleCount; c += 1) {
+        resources.forEach((res) => columns.push({ c, res }));
+      }
+      const cycHeads = Array.from({ length: cycleCount }, (_, i) => (
+        `<th colspan="${resources.length}" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:6px;">Siklus ${i + 1}</th>`
+      )).join("");
+      const resHeads = columns.map(({ res }) => (
+        `<th style="width:170px;background:#f8fafc;color:#0f172a;border:1px solid #cbd5e1;padding:6px;">${escapeHtml(res.name)}</th>`
+      )).join("");
+
+      const occupiedUntil = new Array(columns.length).fill(0);
+      const vRows = [];
+      for (let t = 0; t < timeScale; t += 1) {
+        const cells = columns.map(({ c, res }, colIdx) => {
+          if (t < occupiedUntil[colIdx]) return "";
+          const cyc = state.cycles[c] || { start: 0, activities: [] };
+          const bar = cyc.activities
+            .filter((a) => a.resourceType === res.type && a.resourceName === res.name && a.duration > 0)
+            .sort((a, b) => a.start - b.start)
+            .find((a) => Math.floor(a.start) <= t && Math.ceil(a.start + a.duration) > t);
+          if (!bar) {
+            return `<td style="height:22px;background:${t < cycleTime ? "#eef2f6" : "#ffffff"};border:1px solid #e2e8f0;"></td>`;
+          }
+          const endRow = Math.min(timeScale, Math.max(t + 1, Math.ceil(bar.start + bar.duration)));
+          const rowSpan = endRow - t;
+          occupiedUntil[colIdx] = endRow;
+          const bg = bar.category === "waiting" ? "#e2e8f0" : (CATEGORY_META[bar.category]?.color || "#2563eb");
+          const fg = bar.category === "waiting" ? "#0f172a" : "#ffffff";
+          return `<td rowspan="${rowSpan}" style="background:${bg};color:${fg};font-weight:bold;border:2px solid #ffffff;text-align:center;vertical-align:middle;padding:4px;">${escapeHtml(bar.name)}<br>${formatNumber(bar.duration)} ${unit}</td>`;
+        }).join("");
+        vRows.push(`<tr><th style="width:80px;background:#f8fafc;color:#475569;border:1px solid #cbd5e1;padding:4px;text-align:right;">${t}–${t + 1} ${unit}</th>${cells}</tr>`);
+      }
+
+      visualGridHtml = `
+        <h3>Grafik Batang Vertikal</h3>
+        <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:10px;table-layout:fixed;margin-bottom:18px;">
+          <tr><th rowspan="2" style="width:80px;background:#0f172a;color:#fff;border:1px solid #0f172a;">Waktu</th>${cycHeads}</tr>
+          <tr>${resHeads}</tr>
+          ${vRows.join("")}
+        </table>
+      `;
     }
+
+    const stepRows = state.cycles.slice(0, cycleCount).flatMap((c, cIdx) => (
+      c.activities.map((a, idx) => `
+        <tr>
+          <td style="border:1px solid #cbd5e1;padding:6px;text-align:center;">Siklus ${cIdx + 1}</td>
+          <td style="border:1px solid #cbd5e1;padding:6px;text-align:center;">${idx + 1}</td>
+          <td style="border:1px solid #cbd5e1;padding:6px;">${escapeHtml(a.name)}</td>
+          <td style="border:1px solid #cbd5e1;padding:6px;">${escapeHtml(CATEGORY_META[a.category]?.short || a.category)}</td>
+          <td style="border:1px solid #cbd5e1;padding:6px;">${escapeHtml(a.resourceName)}</td>
+          <td style="border:1px solid #cbd5e1;padding:6px;text-align:right;">${formatNumber(a.start)} ${unit}</td>
+          <td style="border:1px solid #cbd5e1;padding:6px;text-align:right;">${formatNumber(a.duration)} ${unit}</td>
+        </tr>
+      `)
+    )).join("");
+
+    const stepTableHtml = `
+      <h3>Daftar Langkah Kerja</h3>
+      <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;margin-bottom:16px;">
+        <tr>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Siklus</th>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Urut</th>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Aktivitas</th>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Kategori</th>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Pelaku</th>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Mulai</th>
+          <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Durasi</th>
+        </tr>
+        ${stepRows}
+      </table>
+    `;
 
     const html = `
       <html><head><meta charset="utf-8"></head><body>
         <h2>${escapeHtml(state.processName || "EasyMMC")}</h2>
-        <p>Target Siklus: ${formatNumber(cycleTime)} ${unit} | Kesibukan Operator: ${formatNumber(metrics.humanUtil)}% | Kesibukan Mesin: ${formatNumber(metrics.machineUtil)}%</p>
-        <h3>Ringkasan Pelaku Kerja (${resources.length})</h3>
+        <p>Target Siklus: ${formatNumber(cycleTime)} ${unit} | Kesibukan Operator: ${formatNumber(metrics.humanUtil)}% | Kesibukan Mesin: ${formatNumber(metrics.machineUtil)}% | Kapasitas: ±${formatNumber(metrics.unitsPerHour)} unit/jam</p>
+        <h3>Ringkasan Pelaku Kerja</h3>
         <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;margin-bottom:16px;">
           <tr>
             <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Pelaku</th>
@@ -2110,22 +2740,12 @@
           </tr>
           ${statRows}
         </table>
-        <h3>Daftar Langkah Kerja</h3>
-        <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;">
-          <tr>
-            <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Siklus</th>
-            <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Pelaku</th>
-            <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Kategori</th>
-            <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Aktivitas</th>
-            <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Mulai (${unit})</th>
-            <th style="background:#0f172a;color:#fff;padding:6px;border:1px solid #0f172a;">Durasi (${unit})</th>
-          </tr>
-          ${actRows.join("")}
-        </table>
+        ${visualGridHtml}
+        ${stepTableHtml}
       </body></html>
     `;
-    downloadFile(html, `${slugify(state.processName)}-easymmc.xls`, "application/vnd.ms-excel");
-    showToast("Laporan Excel (.xls) berhasil diunduh.");
+    downloadFile(html, `${slugify(state.processName)}-${state.chartFormat}.xls`, "application/vnd.ms-excel");
+    showToast("Laporan Excel (.xls) bergrafik berhasil diunduh.");
   }
 
   function downloadJsonBackup() {
@@ -2153,11 +2773,12 @@
 
   function downloadFile(content, fileName, mimeType) {
     const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    link.href = url;
     link.download = fileName;
     link.click();
-    URL.revokeObjectURL(link.href);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function setZoom(next) {
