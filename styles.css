@@ -582,12 +582,20 @@ select:focus {
   background: var(--surface) !important;
 }
 
+.activity-drag-handle {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: -1px;
+  cursor: grab;
+  user-select: none;
+  padding: 2px 3px;
+  flex-shrink: 0;
+}
+
 .activity-item-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .activity-submeta {
@@ -597,8 +605,36 @@ select:focus {
 
 .activity-item-controls {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-dur-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.mini-time-field {
+  display: grid;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mini-time-input {
+  width: 68px !important;
+  min-height: 30px !important;
+  height: 30px;
+  padding: 3px 6px !important;
+  text-align: center;
+  font-size: 12px !important;
+  font-weight: 600 !important;
 }
 
 .mini-btn {

@@ -11,9 +11,16 @@ const portArg = process.argv.find((arg) => arg.startsWith("--port="))?.split("="
 const app = express();
 const PORT = Number(portArg) || Number(process.env.PORT) || 3000;
 
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
+}));
 
 app.use((req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.sendFile(path.join(__dirname, "index.html"));
 });
 

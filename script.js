@@ -488,7 +488,7 @@
       synced.push({
         start: i === 0 ? 0 : (existing && !wasAutoStart ? existingStart : sequentialStart),
         activities: existing && Array.isArray(existing.activities)
-          ? existing.activities.map(normalizeActivity)
+          ? existing.activities
           : sourceActivities.map((a) => ({ ...normalizeActivity(a) }))
       });
     }
@@ -849,6 +849,7 @@
       return;
     }
 
+    const unitShort = state.timeUnit === "detik" ? "dtk" : "mnt";
     el.activityListContainer.innerHTML = activities.map((act, idx) => {
       const catLabel = CATEGORY_META[act.category]?.short || "Kerja";
       const end = act.start + act.duration;
@@ -856,6 +857,7 @@
         <div class="activity-item" draggable="true" data-index="${idx}">
           <div class="activity-item-top">
             <div class="activity-item-title">
+              <span class="activity-drag-handle" title="Tarik untuk ubah urutan" aria-hidden="true">⋮⋮</span>
               <span class="cat-marker ${act.category}" aria-hidden="true"></span>
               <input type="text" class="activity-name-input" data-act-name="${idx}" value="${escapeAttr(act.name)}" aria-label="Nama aktivitas">
             </div>
@@ -864,22 +866,95 @@
           <div class="activity-item-meta">
             <span class="activity-submeta tabular-nums">${escapeHtml(act.resourceName)} · ${escapeHtml(catLabel)} · ${formatNumber(act.start)}–${formatNumber(end)} ${state.timeUnit}</span>
             <div class="activity-item-controls">
-              <button type="button" class="mini-btn" data-act-step="${idx}" data-delta="-1" title="Kurangi 1">-1</button>
-              <span class="mini-dur tabular-nums">${formatNumber(act.duration)} ${state.timeUnit === "detik" ? "s" : "m"}</span>
-              <button type="button" class="mini-btn" data-act-step="${idx}" data-delta="1" title="Tambah 1">+1</button>
+              <label class="mini-time-field">
+                <span>Mulai (${unitShort})</span>
+                <input type="number" min="0" step="any" class="mini-time-input tabular-nums" data-act-start="${idx}" value="${formatNumber(act.start)}" aria-label="Waktu mulai">
+              </label>
+              <div class="mini-dur-group">
+                <button type="button" class="mini-btn" data-act-step="${idx}" data-delta="-1" title="Kurangi 1">-1</button>
+                <label class="mini-time-field">
+                  <span>Durasi (${unitShort})</span>
+                  <input type="number" min="0.1" step="any" class="mini-time-input tabular-nums" data-act-dur="${idx}" value="${formatNumber(act.duration)}" aria-label="Durasi">
+                </label>
+                <button type="button" class="mini-btn" data-act-step="${idx}" data-delta="1" title="Tambah 1">+1</button>
+              </div>
             </div>
           </div>
         </div>
       `;
     }).join("");
 
+    const getLiveList = () => getActiveCycle().activities;
+
+    const syncCardLive = (card, act) => {
+      const catLabel = CATEGORY_META[act.category]?.short || "Kerja";
+      const submeta = card?.querySelector(".activity-submeta");
+      if (submeta) {
+        submeta.textContent = `${act.resourceName} · ${catLabel} · ${formatNumber(act.start)}–${formatNumber(act.start + act.duration)} ${state.timeUnit}`;
+      }
+      renderHeaderKpis();
+      renderChart();
+      renderResourceSummary();
+      renderKaizenInsights();
+      renderAdvancedTable();
+      saveStateToStorage();
+    };
+
     el.activityListContainer.querySelectorAll("[data-act-name]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.actName);
+        const list = getLiveList();
+        if (!list[idx]) return;
+        list[idx].name = input.value;
+        syncCardLive(input.closest(".activity-item"), list[idx]);
+      });
       input.addEventListener("change", () => {
         const idx = Number(input.dataset.actName);
-        activities[idx].name = input.value.trim() || "Tanpa nama";
-        renderChart();
-        renderKaizenInsights();
-        saveStateToStorage();
+        const list = getLiveList();
+        if (!list[idx]) return;
+        list[idx].name = input.value.trim() || "Tanpa nama";
+        renderAll();
+      });
+    });
+
+    el.activityListContainer.querySelectorAll("[data-act-start]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.actStart);
+        const list = getLiveList();
+        const target = list[idx];
+        const parsed = Number(input.value);
+        if (!target || input.value === "" || isNaN(parsed)) return;
+        target.start = Math.max(0, Math.round(parsed * 100) / 100);
+        syncCardLive(input.closest(".activity-item"), target);
+      });
+      input.addEventListener("change", () => {
+        const idx = Number(input.dataset.actStart);
+        const list = getLiveList();
+        const target = list[idx];
+        if (!target) return;
+        target.start = Math.max(0, Math.round((Number(input.value) || 0) * 100) / 100);
+        renderAll();
+      });
+    });
+
+    el.activityListContainer.querySelectorAll("[data-act-dur]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.actDur);
+        const list = getLiveList();
+        const target = list[idx];
+        const parsed = Number(input.value);
+        if (!target || input.value === "" || isNaN(parsed) || parsed <= 0) return;
+        target.duration = Math.max(0.1, Math.round(parsed * 100) / 100);
+        syncCardLive(input.closest(".activity-item"), target);
+      });
+      input.addEventListener("change", () => {
+        const idx = Number(input.dataset.actDur);
+        const list = getLiveList();
+        const target = list[idx];
+        if (!target) return;
+        const parsed = Number(input.value);
+        target.duration = Math.max(0.1, Math.round((parsed > 0 ? parsed : 0.5) * 100) / 100);
+        renderAll();
       });
     });
 
@@ -887,15 +962,22 @@
       btn.addEventListener("click", () => {
         const idx = Number(btn.dataset.actStep);
         const delta = Number(btn.dataset.delta);
-        const target = activities[idx];
+        const list = getLiveList();
+        const target = list[idx];
+        if (!target) return;
         const prevDur = target.duration;
-        target.duration = Math.max(0.5, roundToHalf(target.duration + delta));
+        target.duration = Math.max(0.5, Math.round((target.duration + delta) * 100) / 100);
         const actualDelta = target.duration - prevDur;
 
-        const prevEnd = target.start + prevDur;
-        for (let j = idx + 1; j < activities.length; j += 1) {
-          if (activities[j].resourceName === target.resourceName && Math.abs(activities[j].start - prevEnd) < 0.01) {
-            activities[j].start = Math.max(0, roundToHalf(activities[j].start + actualDelta));
+        let expectedStart = target.start + prevDur;
+        for (let j = idx + 1; j < list.length; j += 1) {
+          if (
+            list[j].resourceType === target.resourceType &&
+            list[j].resourceName === target.resourceName &&
+            Math.abs(list[j].start - expectedStart) < 0.05
+          ) {
+            expectedStart = list[j].start + list[j].duration;
+            list[j].start = Math.max(0, Math.round((list[j].start + actualDelta) * 100) / 100);
           }
         }
         renderAll();
@@ -905,14 +987,23 @@
     el.activityListContainer.querySelectorAll("[data-act-del]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const idx = Number(btn.dataset.actDel);
-        activities.splice(idx, 1);
+        getLiveList().splice(idx, 1);
         renderAll();
       });
     });
 
     el.activityListContainer.querySelectorAll(".activity-item").forEach((card) => {
+      card.addEventListener("pointerdown", (e) => {
+        const interactive = e.target instanceof Element && e.target.closest("input, button, label");
+        card.draggable = !interactive;
+      });
+
+      card.addEventListener("pointerup", () => {
+        card.draggable = true;
+      });
+
       card.addEventListener("dragstart", (e) => {
-        if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") {
+        if (!card.draggable) {
           e.preventDefault();
           return;
         }
@@ -921,6 +1012,7 @@
       });
 
       card.addEventListener("dragend", () => {
+        card.draggable = true;
         card.classList.remove("is-dragging");
         draggedActivityIndex = null;
         el.activityListContainer.querySelectorAll(".activity-item").forEach((c) => c.classList.remove("is-drag-over"));
@@ -940,9 +1032,10 @@
         const targetIndex = Number(card.dataset.index);
         if (draggedActivityIndex === null || draggedActivityIndex === targetIndex) return;
 
-        const [moved] = activities.splice(draggedActivityIndex, 1);
-        activities.splice(targetIndex, 0, moved);
-        recalculatePerActorSequential(activities);
+        const list = getLiveList();
+        const [moved] = list.splice(draggedActivityIndex, 1);
+        list.splice(targetIndex, 0, moved);
+        recalculatePerActorSequential(list);
         renderAll();
       });
     });
@@ -987,8 +1080,8 @@
             </select>
           </td>
           <td><select data-tbl-field="actor" data-idx="${idx}">${actorOptions}</select></td>
-          <td><input type="number" min="0" step="0.5" class="tabular-nums" data-tbl-field="start" data-idx="${idx}" value="${formatNumber(cycleStart + act.start)}"></td>
-          <td><input type="number" min="0.5" step="0.5" class="tabular-nums" data-tbl-field="duration" data-idx="${idx}" value="${formatNumber(act.duration)}"></td>
+          <td><input type="number" min="0" step="any" class="tabular-nums" data-tbl-field="start" data-idx="${idx}" value="${formatNumber(cycleStart + act.start)}"></td>
+          <td><input type="number" min="0.1" step="any" class="tabular-nums" data-tbl-field="duration" data-idx="${idx}" value="${formatNumber(act.duration)}"></td>
           <td><button type="button" class="mini-btn danger" data-tbl-del="${idx}">Hapus</button></td>
         </tr>
       `;
@@ -999,7 +1092,8 @@
       input.addEventListener(eventName, () => {
         const idx = Number(input.dataset.idx);
         const field = input.dataset.tblField;
-        const act = activities[idx];
+        const list = getActiveCycle().activities;
+        const act = list[idx];
         if (!act) return;
 
         if (field === "name") {
@@ -1011,9 +1105,12 @@
           act.resourceType = parsed.resourceType;
           act.resourceName = parsed.resourceName;
         } else if (field === "start") {
+          if (input.value === "") return;
           act.start = Math.max(0, (Number(input.value) || 0) - cycleStart);
         } else if (field === "duration") {
-          act.duration = Math.max(0.5, Number(input.value) || 0.5);
+          const parsed = Number(input.value);
+          if (input.value === "" || isNaN(parsed) || parsed <= 0) return;
+          act.duration = Math.max(0.1, Math.round(parsed * 100) / 100);
         }
 
         renderHeaderKpis();
@@ -1028,17 +1125,18 @@
     el.activityRows.querySelectorAll("[data-move]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const idx = Number(btn.dataset.idx);
+        const list = getActiveCycle().activities;
         const target = btn.dataset.move === "up" ? idx - 1 : idx + 1;
-        if (target < 0 || target >= activities.length) return;
-        [activities[idx], activities[target]] = [activities[target], activities[idx]];
-        recalculatePerActorSequential(activities);
+        if (target < 0 || target >= list.length) return;
+        [list[idx], list[target]] = [list[target], list[idx]];
+        recalculatePerActorSequential(list);
         renderAll();
       });
     });
 
     el.activityRows.querySelectorAll("[data-tbl-del]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        activities.splice(Number(btn.dataset.tblDel), 1);
+        getActiveCycle().activities.splice(Number(btn.dataset.tblDel), 1);
         renderAll();
       });
     });
