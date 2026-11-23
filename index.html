@@ -3,144 +3,557 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Man Machine Chart</title>
-  <link rel="stylesheet" href="styles.css?v=excel-calculation-1">
+  <title>EasyMMC — Man-Machine Chart Sederhana & Analisis Produksi</title>
+  <meta name="description" content="Aplikasi visualisasi Man-Machine Chart ramah pemula dan teknik industri untuk memetakan kerja operator dan mesin, menemukan waktu menganggur, dan simulasi Kaizen.">
+  <meta property="og:title" content="EasyMMC — Man-Machine Chart Sederhana">
+  <meta property="og:description" content="Petakan waktu kerja operator dan mesin, temukan idle time, dan lakukan simulasi perbaikan produksi dalam hitungan menit.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="hero">
-    <div>
-      <p class="eyebrow">Industrial Engineering Tool</p>
-      <h1>Man Machine Chart</h1>
-      <p class="subtitle">Input waktu kerja manusia dan mesin, atur cycle time, lalu lihat grafik aktivitas dan idle time.</p>
-    </div>
-    <div class="hero-card">
-      <span>Total Waktu</span>
-      <strong id="totalTimeLabel">0 detik</strong>
+  <header class="topbar" role="banner">
+    <a href="#workspace" class="brand" id="brandLink">EasyMMC</a>
+    <nav class="topnav" aria-label="Navigasi Utama">
+      <button type="button" class="nav-link is-active" data-view="workspace">Grafik Kerja</button>
+      <button type="button" class="nav-link" data-view="compare">Before vs After</button>
+      <button type="button" class="nav-link" data-view="stopwatch">Stopwatch</button>
+      <button type="button" class="nav-link" data-view="projects">Proyek Tersimpan</button>
+      <button type="button" class="nav-link" data-view="guide">Panduan</button>
+    </nav>
+    <div class="topbar-actions">
+      <button type="button" id="quickSaveProjectBtn" class="btn-primary">Simpan Proyek</button>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="panel controls">
-      <div class="section-title">
-        <div>
-          <h2>Data Cycle</h2>
-          <p>Gunakan satuan waktu yang sama, misalnya detik atau menit.</p>
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <main class="app-shell">
+    <!-- KPI Header Strip -->
+    <section class="kpi-strip" aria-label="Ringkasan Siklus Kerja">
+      <div class="kpi-project-bar">
+        <div class="kpi-project-title">
+          <h1 id="projectHeading">Proses Bubut &amp; Periksa Part A</h1>
+          <p id="projectMeta" class="muted-meta">1 Operator · 1 Mesin · Satuan Detik</p>
+        </div>
+        <div class="mode-switch-wrap" role="group" aria-label="Pilih Mode Tampilan Input">
+          <button type="button" id="simpleModeBtn" class="seg-btn is-active">Mode Sederhana</button>
+          <button type="button" id="advancedModeBtn" class="seg-btn">Mode Lanjutan</button>
         </div>
       </div>
 
-      <form id="chartForm" novalidate autocomplete="off">
-        <div class="grid two">
-          <label>
-            Nama Proses
-            <input id="processName" type="text">
-          </label>
-          <label>
-            Satuan
-            <select id="timeUnit">
-              <option value="detik">Detik</option>
-              <option value="menit">Menit</option>
-            </select>
-          </label>
-          <label>
-            Timeline
-            <input id="cycleTime" type="number" min="1" step="0.1">
-          </label>
-          <label>
-            Jumlah Cycle Ditampilkan
-            <input id="cycleCount" type="number" min="1" max="20" step="1">
-          </label>
-          <label>
-            Jumlah Manusia
-            <input id="humanCount" type="number" min="0" max="20" step="1">
-          </label>
-          <label>
-            Jumlah Mesin
-            <input id="machineCount" type="number" min="0" max="20" step="1">
-          </label>
-        </div>
-
-        <div class="cycle-editor">
-          <label>
-            Edit Cycle
-            <select id="activeCycleSelect"></select>
-          </label>
-          <label>
-            Start Cycle
-            <input id="activeCycleStart" type="number" min="0" step="0.1" value="0">
-          </label>
-          <button type="button" id="copyPreviousCycleBtn" class="secondary">Copy Cycle</button>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Urut</th>
-                <th>Aktivitas</th>
-                <th>Jenis</th>
-                <th>Nama Resource</th>
-                <th>Mulai</th>
-                <th>Durasi</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="activityRows"></tbody>
-          </table>
-        </div>
-
-        <div class="actions">
-          <button type="button" id="newCalculationBtn" class="ghost">Hitung Baru</button>
-          <button type="button" id="addActivityBtn" class="secondary">Tambah Aktivitas</button>
-          <button type="button" id="loadExampleBtn" class="ghost">Contoh Data</button>
-          <button type="button" id="saveSimulationBtn" class="secondary">Simpan Simulasi</button>
-          <button type="button" id="loadSimulationBtn" class="ghost">Muat Simulasi</button>
-          <input id="simulationFileInput" type="file" accept="application/json,.json" hidden>
-          <button type="button" id="generateChartBtn">Generate Chart</button>
-        </div>
-      </form>
+      <div class="kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">Total Waktu 1 Siklus</span>
+          <strong class="kpi-value tabular-nums" id="kpiCycleTime">0 detik</strong>
+          <span class="kpi-sub tabular-nums" id="kpiOutputRate">Kapasitas: 0 unit/jam</span>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Kesibukan Operator</span>
+          <strong class="kpi-value tabular-nums" id="kpiOperatorUtil">0%</strong>
+          <span class="kpi-sub tabular-nums" id="kpiOperatorDetail">0 detik kerja · 0 detik menganggur</span>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Kesibukan Mesin</span>
+          <strong class="kpi-value tabular-nums" id="kpiMachineUtil">0%</strong>
+          <span class="kpi-sub tabular-nums" id="kpiMachineDetail">0 detik jalan · 0 detik kosong</span>
+        </article>
+      </div>
     </section>
 
-    <section class="panel output">
-      <div class="section-title">
-        <div>
-          <h2 id="chartTitle">Grafik MM Chart</h2>
-          <p id="chartSubtitle">Grafik akan otomatis mengikuti data input.</p>
-        </div>
-        <div class="export-actions">
-          <label class="format-control">
-            Format Grafik
-            <select id="chartFormat">
-              <option value="timeline">MM Chart Timeline</option>
-              <option value="vertical">Batang Vertikal</option>
-            </select>
-          </label>
-          <button type="button" id="zoomOutBtn" class="secondary small">Zoom -</button>
-          <button type="button" id="zoomResetBtn" class="secondary small">100%</button>
-          <button type="button" id="zoomInBtn" class="secondary small">Zoom +</button>
-          <button type="button" id="exportPdfBtn" class="secondary small">Export PDF</button>
-          <button type="button" id="exportExcelBtn" class="secondary small">Export Excel</button>
-          <button type="button" id="printBtn" class="secondary small">Print</button>
-        </div>
+    <!-- VIEW 1: WORKSPACE -->
+    <section id="view-workspace" class="view-section is-active">
+      <div class="workspace-grid">
+        <!-- LEFT PANEL: INPUT -->
+        <aside class="panel input-panel">
+          <form id="chartForm" novalidate autocomplete="off">
+            <!-- Step 1: Setup & Templates -->
+            <div class="step-block">
+              <div class="step-header">
+                <h2>1. Pengaturan Dasar &amp; Template</h2>
+                <button type="button" class="help-btn" data-help="Template mengisi contoh kegiatan otomatis agar Anda tidak mulai dari nol.">?</button>
+              </div>
+
+              <div class="template-row" role="group" aria-label="Template Siap Pakai">
+                <button type="button" class="tpl-btn" data-template="1op-1mc">1 Operator · 1 Mesin</button>
+                <button type="button" class="tpl-btn" data-template="1op-2mc">1 Operator · 2 Mesin</button>
+                <button type="button" class="tpl-btn" data-template="2op-2mc">2 Operator · 2 Mesin</button>
+                <button type="button" class="tpl-btn" data-template="blank">Mulai Kosong</button>
+              </div>
+
+              <div class="field-grid two-col">
+                <label class="field span-2">
+                  <span>Nama Proses / Pekerjaan</span>
+                  <input id="processName" type="text" placeholder="Contoh: Pemasangan Baut Mesin A">
+                </label>
+
+                <label class="field">
+                  <span>Jumlah Operator</span>
+                  <input id="humanCount" type="number" min="0" max="20" step="1" value="1">
+                </label>
+
+                <label class="field">
+                  <span>Jumlah Mesin</span>
+                  <input id="machineCount" type="number" min="0" max="20" step="1" value="1">
+                </label>
+
+                <label class="field">
+                  <span class="label-with-help">
+                    Target Waktu 1 Siklus
+                    <button type="button" class="help-inline" data-help="Waktu maksimal untuk menyelesaikan 1 produk dari awal sampai akhir.">?</button>
+                  </span>
+                  <input id="cycleTime" type="number" min="1" step="0.1" value="60">
+                </label>
+
+                <label class="field">
+                  <span>Satuan Waktu</span>
+                  <select id="timeUnit">
+                    <option value="detik">Detik</option>
+                    <option value="menit">Menit</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <!-- Advanced IE Controls (Hidden in Simple Mode) -->
+            <div id="advancedControlsBlock" class="step-block is-hidden">
+              <div class="step-header">
+                <h2>Pengaturan Siklus Lanjutan (Multi-Cycle)</h2>
+                <button type="button" class="help-btn" data-help="Gunakan bagian ini untuk memetakan beberapa putaran kerja sekaligus atau mengatur putaran yang tumpang tindih.">?</button>
+              </div>
+
+              <div class="field-grid two-col">
+                <label class="field">
+                  <span>Jumlah Siklus Ditampilkan</span>
+                  <input id="cycleCount" type="number" min="1" max="20" step="1" value="1">
+                </label>
+
+                <label class="field">
+                  <span>Pilih Siklus Diedit</span>
+                  <select id="activeCycleSelect"></select>
+                </label>
+
+                <label class="field">
+                  <span>Waktu Mulai Siklus</span>
+                  <input id="activeCycleStart" type="number" min="0" step="0.1" value="0">
+                </label>
+
+                <div class="field align-end">
+                  <button type="button" id="copyPreviousCycleBtn" class="btn-secondary full-width">Salin Siklus Sebelumnya</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 2: Quick Add Activity -->
+            <div class="step-block">
+              <div class="step-header">
+                <h2>2. Tambah Langkah Kerja</h2>
+                <button type="button" class="help-btn" data-help="Pilih pelaku (Operator atau Mesin), jenis kerja, nama kegiatan, dan lama waktunya.">?</button>
+              </div>
+
+              <div class="quick-add-box">
+                <div class="field-grid two-col">
+                  <label class="field">
+                    <span>Pelaku Kerja</span>
+                    <select id="quickActor"></select>
+                  </label>
+
+                  <label class="field">
+                    <span>Jenis Aktivitas</span>
+                    <select id="quickCategory">
+                      <option value="machine-work">Kerja di Mesin (Biru)</option>
+                      <option value="self">Kerja Mandiri (Hijau)</option>
+                      <option value="auto">Mesin Jalan Otomatis (Oranye)</option>
+                      <option value="waiting">Menunggu (Abu-abu)</option>
+                    </select>
+                  </label>
+
+                  <label class="field span-2">
+                    <span>Nama Kegiatan</span>
+                    <input id="quickName" type="text" list="activitySuggestions" placeholder="Contoh: Pasang part ke jig">
+                    <datalist id="activitySuggestions">
+                      <option value="Ambil bahan baku">
+                      <option value="Pasang part ke mesin">
+                      <option value="Tekan tombol Start">
+                      <option value="Mesin proses otomatis">
+                      <option value="Keluarkan hasil dari mesin">
+                      <option value="Bersihkan & cek kualitas">
+                      <option value="Letakkan ke keranjang jadi">
+                      <option value="Menunggu mesin selesai">
+                    </datalist>
+                  </label>
+
+                  <label class="field">
+                    <span>Aturan Waktu Mulai</span>
+                    <select id="quickStartMode">
+                      <option value="after-actor">Setelah kegiatan terakhir pelaku ini</option>
+                      <option value="after-all">Setelah kegiatan terakhir semua</option>
+                      <option value="zero">Mulai dari detik ke-0</option>
+                      <option value="manual">Atur manual</option>
+                    </select>
+                  </label>
+
+                  <label class="field" id="quickManualStartWrap">
+                    <span>Mulai di Detik/Menit</span>
+                    <input id="quickManualStart" type="number" min="0" step="0.5" value="0">
+                  </label>
+
+                  <div class="field span-2">
+                    <span>Durasi (<span class="unit-text">detik</span>)</span>
+                    <div class="stepper-control">
+                      <button type="button" class="stepper-btn" id="quickDurMinus5">-5</button>
+                      <button type="button" class="stepper-btn" id="quickDurMinus1">-1</button>
+                      <input id="quickDuration" type="number" min="0.5" step="0.5" value="10" class="tabular-nums">
+                      <button type="button" class="stepper-btn" id="quickDurPlus1">+1</button>
+                      <button type="button" class="stepper-btn" id="quickDurPlus5">+5</button>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" id="quickAddBtn" class="btn-primary full-width">+ Tambah Langkah Kerja</button>
+              </div>
+            </div>
+
+            <!-- Step 3: Activity List (Simple Cards / Advanced Table) -->
+            <div class="step-block">
+              <div class="step-header">
+                <h2>3. Daftar Langkah Kerja (<span id="activityCountLabel">0</span>)</h2>
+                <span class="hint-text">Geser urutan atau klik +/-</span>
+              </div>
+
+              <div id="activityListContainer" class="activity-list"></div>
+
+              <div id="advancedTableWrap" class="table-wrap is-hidden">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Urut</th>
+                      <th>Aktivitas</th>
+                      <th>Kategori</th>
+                      <th>Pelaku</th>
+                      <th>Mulai</th>
+                      <th>Durasi</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="activityRows"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- File & Reset Actions -->
+            <div class="panel-footer-actions">
+              <button type="button" id="newCalculationBtn" class="btn-ghost">Reset Kosong</button>
+              <button type="button" id="importCsvBtn" class="btn-secondary">Import CSV</button>
+              <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden>
+              <button type="button" id="saveSimulationBtn" class="btn-secondary is-advanced-only is-hidden">Unduh JSON</button>
+              <button type="button" id="loadSimulationBtn" class="btn-secondary is-advanced-only is-hidden">Muat JSON</button>
+              <input id="simulationFileInput" type="file" accept="application/json,.json" hidden>
+            </div>
+          </form>
+        </aside>
+
+        <!-- RIGHT PANEL: CHART & REPORTS -->
+        <section class="panel output-panel">
+          <div class="chart-toolbar">
+            <div class="format-tabs" role="group" aria-label="Format Tampilan Grafik">
+              <button type="button" class="seg-btn is-active" data-format="vertical">Grafik Vertikal</button>
+              <button type="button" class="seg-btn" data-format="timeline">Timeline Horizontal</button>
+              <button type="button" class="seg-btn" data-format="table">Tabel Angka</button>
+            </div>
+
+            <div class="toolbar-right">
+              <div class="zoom-group" role="group" aria-label="Zoom Grafik">
+                <button type="button" id="zoomOutBtn" class="btn-icon" title="Perkecil">−</button>
+                <button type="button" id="zoomResetBtn" class="btn-icon tabular-nums">100%</button>
+                <button type="button" id="zoomInBtn" class="btn-icon" title="Perbesar">+</button>
+              </div>
+              <button type="button" id="exportPngBtn" class="btn-secondary">Export PNG</button>
+              <button type="button" id="exportCsvBtn" class="btn-secondary">Export CSV</button>
+              <button type="button" id="exportExcelBtn" class="btn-secondary is-advanced-only is-hidden">Export Excel</button>
+              <button type="button" id="exportPdfBtn" class="btn-primary">Print / PDF</button>
+            </div>
+          </div>
+
+          <p class="interaction-hint" id="chartInteractionHint">
+            Tips: Tarik balok pada grafik vertikal ke atas/bawah untuk menggeser waktu mulai, atau tarik garis bawah balok untuk mengubah durasi.
+          </p>
+
+          <!-- Vertical Top-to-Bottom Chart (Default EasyMMC) -->
+          <div id="verticalChartContainer" class="vertical-chart-shell"></div>
+
+          <!-- Horizontal Timeline Chart (Advanced Mode / Alternate) -->
+          <div id="horizontalChartContainer" class="chart-shell is-hidden">
+            <div class="chart-header" id="chartHeader"></div>
+            <div class="chart" id="chart"></div>
+          </div>
+
+          <!-- Numeric Summary Table View -->
+          <div id="numericTableContainer" class="numeric-table-shell is-hidden"></div>
+
+          <!-- Legend (4 Categories per README) -->
+          <div class="legend" aria-label="Keterangan Warna Aktivitas">
+            <span><i class="swatch self"></i> Kerja Mandiri (Operator di luar mesin)</span>
+            <span><i class="swatch machine-work"></i> Kerja di Mesin (Operator + Mesin)</span>
+            <span><i class="swatch auto"></i> Mesin Jalan Otomatis</span>
+            <span><i class="swatch waiting"></i> Menunggu / Menganggur</span>
+          </div>
+
+          <!-- Resource Breakdown Cards -->
+          <div class="resource-summary-grid" id="summaryCards"></div>
+        </section>
       </div>
 
-      <div class="summary" id="summaryCards"></div>
+      <!-- Bottom Kaizen Advisor Panel -->
+      <section class="panel kaizen-panel" aria-label="Kotak Saran Kaizen">
+        <div class="kaizen-header">
+          <div>
+            <h2>Kotak Saran Kaizen &amp; Deteksi Otomatis</h2>
+            <p>Analisis otomatis untuk menemukan waktu menganggur, jadwal bentrok, dan peluang perbaikan.</p>
+          </div>
+          <button type="button" id="snapshotBeforeBtn" class="btn-secondary">Jadikan Kondisi Awal (Before)</button>
+        </div>
+        <div id="kaizenInsights" class="kaizen-grid"></div>
+      </section>
+    </section>
 
-      <section class="process-chart is-hidden" id="processChart" aria-label="Grafik batang vertikal proses Man Machine"></section>
+    <!-- VIEW 2: BEFORE VS AFTER -->
+    <section id="view-compare" class="view-section">
+      <div class="panel compare-panel">
+        <div class="section-head-row">
+          <div>
+            <h2>Simulasi "Bagaimana Jika?" (Before vs After)</h2>
+            <p>Bandingkan kondisi kerja sebelum perbaikan (Before) dengan kondisi simulasi terbaru (After).</p>
+          </div>
+          <div class="compare-actions">
+            <button type="button" id="captureBeforeBtn" class="btn-secondary">Ambil Grafik Aktif ke Before</button>
+            <button type="button" id="captureAfterBtn" class="btn-primary">Ambil Grafik Aktif ke After</button>
+          </div>
+        </div>
 
-      <div class="chart-shell">
-        <div class="chart-header" id="chartHeader"></div>
-        <div class="chart" id="chart"></div>
+        <div id="compareDeltaStrip" class="compare-delta-strip"></div>
+
+        <div class="compare-columns">
+          <div class="compare-col">
+            <div class="compare-col-head">
+              <h3>Kondisi Awal (Before)</h3>
+              <button type="button" id="loadBeforeToWorkspaceBtn" class="btn-ghost">Buka di Editor</button>
+            </div>
+            <div id="beforeSummaryContent" class="compare-body"></div>
+          </div>
+          <div class="compare-col">
+            <div class="compare-col-head">
+              <h3>Sesudah Perbaikan (After)</h3>
+              <button type="button" id="loadAfterToWorkspaceBtn" class="btn-ghost">Buka di Editor</button>
+            </div>
+            <div id="afterSummaryContent" class="compare-body"></div>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="legend">
-        <span><i class="swatch human"></i> Manusia bekerja</span>
-        <span><i class="swatch machine"></i> Mesin bekerja</span>
-        <span><i class="swatch waiting"></i> Tunggu / menunggu</span>
-        <span><i class="swatch idle"></i> Idle</span>
+    <!-- VIEW 3: STOPWATCH TIME STUDY -->
+    <section id="view-stopwatch" class="view-section">
+      <div class="panel stopwatch-panel">
+        <div class="section-head-row">
+          <div>
+            <h2>Stopwatch Pengukur Waktu Lapangan (Time Study)</h2>
+            <p>Klik Mulai sambil mengamati operator atau mesin bekerja, lalu tekan Catat Langkah untuk merekam durasi otomatis.</p>
+          </div>
+        </div>
+
+        <div class="stopwatch-layout">
+          <div class="stopwatch-console">
+            <div class="stopwatch-readout tabular-nums" id="stopwatchDisplay">00:00.0</div>
+            <div class="stopwatch-controls">
+              <button type="button" id="swStartPauseBtn" class="btn-primary">Mulai</button>
+              <button type="button" id="swLapBtn" class="btn-secondary" disabled>Catat Langkah</button>
+              <button type="button" id="swResetBtn" class="btn-ghost">Reset</button>
+            </div>
+
+            <div class="field-grid two-col sw-form">
+              <label class="field">
+                <span>Pelaku Kerja</span>
+                <select id="swActor"></select>
+              </label>
+              <label class="field">
+                <span>Jenis Aktivitas</span>
+                <select id="swCategory">
+                  <option value="machine-work">Kerja di Mesin (Biru)</option>
+                  <option value="self">Kerja Mandiri (Hijau)</option>
+                  <option value="auto">Mesin Jalan Otomatis (Oranye)</option>
+                  <option value="waiting">Menunggu (Abu-abu)</option>
+                </select>
+              </label>
+              <label class="field span-2">
+                <span>Nama Kegiatan Berikutnya</span>
+                <input id="swActivityName" type="text" list="activitySuggestions" placeholder="Contoh: Pasang material ke mesin">
+              </label>
+            </div>
+          </div>
+
+          <div class="stopwatch-log-box">
+            <div class="compare-col-head">
+              <h3>Hasil Pengukuran (<span id="swCount">0</span>)</h3>
+              <button type="button" id="swSendToChartBtn" class="btn-primary" disabled>Masukkan ke Grafik</button>
+            </div>
+            <div id="swLogList" class="sw-log-list">
+              <p class="empty-msg">Belum ada langkah yang dicatat. Tekan "Mulai" lalu "Catat Langkah".</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: SAVED PROJECTS (LOCALSTORAGE) -->
+    <section id="view-projects" class="view-section">
+      <div class="panel projects-panel">
+        <div class="section-head-row">
+          <div>
+            <h2>Proyek Tersimpan di Browser (LocalStorage)</h2>
+            <p>Pekerjaan Anda tersimpan otomatis. Anda juga dapat menyimpan banyak skenario proses untuk dibuka kapan saja.</p>
+          </div>
+          <button type="button" id="saveNamedProjectBtn" class="btn-primary">Simpan Skenario Saat Ini</button>
+        </div>
+        <div id="savedProjectsList" class="projects-grid"></div>
+      </div>
+    </section>
+
+    <!-- VIEW 5: PANDUAN PENGGUNAAN -->
+    <section id="view-guide" class="view-section">
+      <div class="panel guide-panel">
+        <div class="section-head-row">
+          <div>
+            <h2>Panduan Penggunaan EasyMMC</h2>
+            <p>Tutorial langkah demi langkah untuk membuat Man-Machine Chart, membaca waktu menganggur, dan melakukan simulasi perbaikan.</p>
+          </div>
+          <button type="button" class="btn-primary" data-guide-go="workspace">Buka Grafik Kerja</button>
+        </div>
+
+        <div class="guide-section">
+          <h3>Bagian 1 · Cara Cepat Membuat Grafik (Mode Sederhana)</h3>
+          <div class="guide-steps-grid">
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Langkah 01</span>
+              <h4>Pengaturan Dasar &amp; Template</h4>
+              <ol>
+                <li>Pilih template siap pakai (<strong>1 Operator · 1 Mesin</strong>, <strong>1 Operator · 2 Mesin</strong>, atau <strong>2 Operator · 2 Mesin</strong>), atau klik <strong>Mulai Kosong</strong>.</li>
+                <li>Isi <strong>Nama Proses</strong>, <strong>Jumlah Operator</strong>, <strong>Jumlah Mesin</strong>, dan <strong>Target Waktu 1 Siklus</strong> (misalnya 60 detik).</li>
+                <li>Klik ikon <strong>?</strong> di sebelah label bila membutuhkan penjelasan istilah.</li>
+              </ol>
+            </article>
+
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Langkah 02</span>
+              <h4>Tambah Langkah Kerja</h4>
+              <ol>
+                <li>Pilih <strong>Pelaku Kerja</strong> (Operator atau Mesin) dan <strong>Jenis Aktivitas</strong> sesuai warna.</li>
+                <li>Ketik <strong>Nama Kegiatan</strong> atau pilih dari daftar saran otomatis.</li>
+                <li>Atur <strong>Durasi</strong> dengan tombol cepat <strong>-5 / -1 / +1 / +5</strong>, lalu klik <strong>+ Tambah Langkah Kerja</strong>.</li>
+              </ol>
+            </article>
+
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Langkah 03</span>
+              <h4>Edit Urutan &amp; Geser Grafik</h4>
+              <ol>
+                <li>Di daftar kiri, tarik kartu langkah ke atas atau bawah untuk menukar urutan, atau klik <strong>-1 / +1</strong> untuk ubah durasi.</li>
+                <li>Di <strong>Grafik Vertikal</strong> (waktu berjalan dari atas ke bawah), tarik balok ke atas/bawah untuk menggeser waktu mulai.</li>
+                <li>Tarik garis kecil di bagian bawah balok untuk memanjangkan atau memendekkan durasi.</li>
+              </ol>
+            </article>
+
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Langkah 04</span>
+              <h4>Baca KPI &amp; Kotak Saran Kaizen</h4>
+              <ol>
+                <li>Pantau 3 kartu ringkasan di atas: <strong>Total Waktu 1 Siklus</strong>, <strong>Kesibukan Operator (%)</strong>, dan <strong>Kesibukan Mesin (%)</strong>.</li>
+                <li>Area abu-abu bertuliskan <strong>Kosong</strong> menunjukkan waktu menganggur (<em>idle time</em>).</li>
+                <li>Periksa <strong>Kotak Saran Kaizen</strong> di bawah grafik untuk melihat deteksi bentrok jadwal dan saran penghematan waktu.</li>
+              </ol>
+            </article>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>Bagian 2 · Arti 4 Warna Jenis Aktivitas</h3>
+          <div class="guide-color-list">
+            <div class="guide-color-row">
+              <span class="swatch self" aria-hidden="true"></span>
+              <div>
+                <strong>Kerja Mandiri (Hijau)</strong>
+                <p>Operator bekerja di luar mesin, misalnya mengambil bahan, memeriksa kualitas, atau merapikan produk jadi.</p>
+              </div>
+            </div>
+            <div class="guide-color-row">
+              <span class="swatch machine-work" aria-hidden="true"></span>
+              <div>
+                <strong>Kerja di Mesin (Biru)</strong>
+                <p>Operator berinteraksi langsung dengan mesin, seperti memasang part ke jig, menekan tombol Start, atau mengeluarkan hasil.</p>
+              </div>
+            </div>
+            <div class="guide-color-row">
+              <span class="swatch auto" aria-hidden="true"></span>
+              <div>
+                <strong>Mesin Jalan Otomatis (Oranye)</strong>
+                <p>Mesin bekerja memproses barang secara otomatis tanpa perlu dipegang operator.</p>
+              </div>
+            </div>
+            <div class="guide-color-row">
+              <span class="swatch waiting" aria-hidden="true"></span>
+              <div>
+                <strong>Menunggu / Menganggur (Abu-abu)</strong>
+                <p>Waktu kosong saat operator menunggu mesin selesai atau mesin menunggu dilayani operator.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>Bagian 3 · Fitur Lapangan, Simulasi, Laporan &amp; Mode Lanjutan</h3>
+          <div class="guide-feature-grid">
+            <article class="guide-feature-card">
+              <h4>Stopwatch Lapangan (Time Study)</h4>
+              <p>Jika belum memiliki angka durasi, buka tab <strong>Stopwatch</strong>, pilih pelaku &amp; jenis aktivitas, tekan <strong>Mulai</strong> saat mengamati lini produksi, tekan <strong>Catat Langkah</strong> tiap pergantian kerja, lalu klik <strong>Masukkan ke Grafik</strong>.</p>
+              <button type="button" class="btn-secondary" data-guide-go="stopwatch">Buka Stopwatch</button>
+            </article>
+
+            <article class="guide-feature-card">
+              <h4>Simulasi Before vs After</h4>
+              <p>Klik <strong>Jadikan Kondisi Awal (Before)</strong> di Kotak Saran Kaizen sebelum mengubah jadwal. Setelah Anda menggeser balok atau memindahkan aktivitas kerja mandiri, buka tab <strong>Before vs After</strong> dan klik <strong>Ambil Grafik Aktif ke After</strong> untuk melihat selisih efisiensi.</p>
+              <button type="button" class="btn-secondary" data-guide-go="compare">Buka Before vs After</button>
+            </article>
+
+            <article class="guide-feature-card">
+              <h4>Simpan Proyek &amp; Export Laporan</h4>
+              <p>Data aktif tersimpan otomatis di browser. Gunakan <strong>Simpan Proyek</strong> untuk menyimpan banyak skenario di tab <strong>Proyek Tersimpan</strong>, serta gunakan tombol <strong>Export PNG</strong> (untuk papan Gemba), <strong>Export/Import CSV</strong>, atau <strong>Print / PDF</strong>.</p>
+              <button type="button" class="btn-secondary" data-guide-go="projects">Lihat Proyek Tersimpan</button>
+            </article>
+
+            <article class="guide-feature-card">
+              <h4>Mode Lanjutan (Teknik Industri)</h4>
+              <p>Klik sakelar <strong>Mode Lanjutan</strong> di kanan atas ringkasan bila perlu mengatur <strong>Multi-Cycle</strong> (hingga 20 siklus), <strong>Waktu Mulai Siklus</strong> yang tumpang tindih, tabel input presisi, <strong>Timeline Horizontal</strong>, serta ekspor <strong>Excel (.xls)</strong> dan backup <strong>JSON</strong>.</p>
+              <button type="button" class="btn-secondary" data-guide-go="workspace">Coba di Editor</button>
+            </article>
+          </div>
+        </div>
       </div>
     </section>
   </main>
 
-  <script src="script.js?v=excel-calculation-1"></script>
+  <!-- Inline Help / Confirmation Modal -->
+  <dialog id="appDialog" class="app-dialog">
+    <div class="dialog-box">
+      <h3 id="dialogTitle">Informasi</h3>
+      <p id="dialogMessage"></p>
+      <div class="dialog-actions">
+        <button type="button" id="dialogCancelBtn" class="btn-ghost">Batal</button>
+        <button type="button" id="dialogConfirmBtn" class="btn-primary">Lanjutkan</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="script.js"></script>
 </body>
 </html>
