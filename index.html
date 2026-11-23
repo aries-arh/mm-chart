@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Man Machine Chart</title>
+  <link rel="stylesheet" href="styles.css?v=excel-calculation-1">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Industrial Engineering Tool</p>
+      <h1>Man Machine Chart</h1>
+      <p class="subtitle">Input waktu kerja manusia dan mesin, atur cycle time, lalu lihat grafik aktivitas dan idle time.</p>
+    </div>
+    <div class="hero-card">
+      <span>Total Waktu</span>
+      <strong id="totalTimeLabel">0 detik</strong>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel controls">
+      <div class="section-title">
+        <div>
+          <h2>Data Cycle</h2>
+          <p>Gunakan satuan waktu yang sama, misalnya detik atau menit.</p>
+        </div>
+      </div>
+
+      <form id="chartForm" novalidate autocomplete="off">
+        <div class="grid two">
+          <label>
+            Nama Proses
+            <input id="processName" type="text">
+          </label>
+          <label>
+            Satuan
+            <select id="timeUnit">
+              <option value="detik">Detik</option>
+              <option value="menit">Menit</option>
+            </select>
+          </label>
+          <label>
+            Timeline
+            <input id="cycleTime" type="number" min="1" step="0.1">
+          </label>
+          <label>
+            Jumlah Cycle Ditampilkan
+            <input id="cycleCount" type="number" min="1" max="20" step="1">
+          </label>
+          <label>
+            Jumlah Manusia
+            <input id="humanCount" type="number" min="0" max="20" step="1">
+          </label>
+          <label>
+            Jumlah Mesin
+            <input id="machineCount" type="number" min="0" max="20" step="1">
+          </label>
+        </div>
+
+        <div class="cycle-editor">
+          <label>
+            Edit Cycle
+            <select id="activeCycleSelect"></select>
+          </label>
+          <label>
+            Start Cycle
+            <input id="activeCycleStart" type="number" min="0" step="0.1" value="0">
+          </label>
+          <button type="button" id="copyPreviousCycleBtn" class="secondary">Copy Cycle</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Urut</th>
+                <th>Aktivitas</th>
+                <th>Jenis</th>
+                <th>Nama Resource</th>
+                <th>Mulai</th>
+                <th>Durasi</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="activityRows"></tbody>
+          </table>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="newCalculationBtn" class="ghost">Hitung Baru</button>
+          <button type="button" id="addActivityBtn" class="secondary">Tambah Aktivitas</button>
+          <button type="button" id="loadExampleBtn" class="ghost">Contoh Data</button>
+          <button type="button" id="saveSimulationBtn" class="secondary">Simpan Simulasi</button>
+          <button type="button" id="loadSimulationBtn" class="ghost">Muat Simulasi</button>
+          <input id="simulationFileInput" type="file" accept="application/json,.json" hidden>
+          <button type="button" id="generateChartBtn">Generate Chart</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel output">
+      <div class="section-title">
+        <div>
+          <h2 id="chartTitle">Grafik MM Chart</h2>
+          <p id="chartSubtitle">Grafik akan otomatis mengikuti data input.</p>
+        </div>
+        <div class="export-actions">
+          <label class="format-control">
+            Format Grafik
+            <select id="chartFormat">
+              <option value="timeline">MM Chart Timeline</option>
+              <option value="vertical">Batang Vertikal</option>
+            </select>
+          </label>
+          <button type="button" id="zoomOutBtn" class="secondary small">Zoom -</button>
+          <button type="button" id="zoomResetBtn" class="secondary small">100%</button>
+          <button type="button" id="zoomInBtn" class="secondary small">Zoom +</button>
+          <button type="button" id="exportPdfBtn" class="secondary small">Export PDF</button>
+          <button type="button" id="exportExcelBtn" class="secondary small">Export Excel</button>
+          <button type="button" id="printBtn" class="secondary small">Print</button>
+        </div>
+      </div>
+
+      <div class="summary" id="summaryCards"></div>
+
+      <section class="process-chart is-hidden" id="processChart" aria-label="Grafik batang vertikal proses Man Machine"></section>
+
+      <div class="chart-shell">
+        <div class="chart-header" id="chartHeader"></div>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="legend">
+        <span><i class="swatch human"></i> Manusia bekerja</span>
+        <span><i class="swatch machine"></i> Mesin bekerja</span>
+        <span><i class="swatch waiting"></i> Tunggu / menunggu</span>
+        <span><i class="swatch idle"></i> Idle</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js?v=excel-calculation-1"></script>
+</body>
+</html>
