@@ -1,81 +1,88 @@
-# 📊 EasyMMC — Aplikasi Man-Machine Chart Sederhana
+# 📊 EasyMMC — Aplikasi Man-Machine Chart
 
-**EasyMMC** adalah aplikasi visualisasi kerja berbasis web untuk memetakan hubungan waktu kerja antara **Operator (Man)** dan **Mesin (Machine)**. Dirancang khusus dengan antarmuka ramah pengguna (*user-friendly*) agar staf produksi yang awam dengan istilah *Industrial Engineering* maupun komputer tetap dapat membuat grafik, menemukan waktu menganggur (*idle time*), dan melakukan simulasi perbaikan dalam hitungan menit.
-
----
-
-## 🎯 Masalah yang Diselesaikan
-* **Sulit Membaca Data Mentah:** Angka waktu siklus (*cycle time*) dalam bentuk tabel sering kali menyulitkan kita melihat kapan operator menganggur atau kapan mesin menunggu operator.
-* **Rumitnya Excel Manual:** Menggambar balok grafik (*timeline*) di Excel secara manual memakan waktu lama dan mudah berantakan saat ada perubahan detik.
-* **Hambatan Bahasa Teknis:** Pengguna awam sering bingung dengan istilah seperti *Internal/External Work*, *Utilization Rate*, atau *Takt Time*.
+**EasyMMC** adalah aplikasi visualisasi kerja berbasis web untuk memetakan hubungan waktu kerja antara **Operator (Man)** dan **Mesin (Machine)**. Aplikasi ini menggabungkan antarmuka sederhana untuk pengguna lapangan yang awam istilah teknik dengan fitur analisis lanjutan untuk kebutuhan **Teknik Industri** (*Mode Hybrid*).
 
 ---
 
-## ✨ Fitur Utama (Ramah Pemula)
+## ✨ Fitur Utama Saat Ini
 
-### 1. Bahasa Sehari-hari (Tanpa Istilah Rumit)
-Alih-alih istilah akademik yang membingungkan, aplikasi menggunakan label visual dengan kode warna yang intuitif:
-* 🟩 **Kerja Mandiri (Hijau):** Operator bekerja di luar mesin (menyiapkan bahan, merapikan hasil) saat mesin sedang jalan atau berhenti.
-* 🟦 **Kerja di Mesin (Biru):** Operator berinteraksi langsung dengan mesin (memasang bahan, menekan tombol *Start*, mengambil hasil).
-* 🟨 **Mesin Jalan Otomatis (Kuning/Oranye):** Mesin memproses barang sendiri tanpa perlu dipegang operator.
-* ⬜ **Menunggu / Menganggur (Abu-abu):** Waktu kosong (operator menunggu mesin selesai, atau mesin menunggu operator datang).
+### 1. Kode Warna & 4 Kategori Aktivitas
+* 🟩 **Kerja Mandiri (Hijau):** Operator bekerja di luar mesin (mengambil bahan, inspeksi kualitas, merapikan hasil).
+* 🟦 **Kerja di Mesin (Biru):** Operator berinteraksi langsung dengan mesin (memasang part ke jig, menekan tombol *Start*, melepas hasil).
+* 🟨 **Mesin Jalan Otomatis (Oranye):** Mesin memproses barang secara otomatis tanpa dipegang operator.
+* ⬜ **Menunggu / Menganggur (Abu-abu):** Waktu kosong (*idle time*) ketika operator menunggu mesin atau mesin menunggu operator.
 
-### 2. Input Data Super Cepat ("Klik & Geser")
-* **Mode Tambah Cepat:** Cukup pilih aktor (**Operator** atau **Mesin**), pilih jenis aktivitas, lalu masukkan durasi (detik).
-* **Drag-and-Drop / Geser Balok:** Ubah urutan kerja atau perpanjang/perpendek durasi langsung dengan menarik ujung balok grafik menggunakan mouse atau layar sentuh.
-* **Template Siap Pakai:** Tersedia contoh kasus bawaan (misal: *1 Operator - 1 Mesin* dan *1 Operator - 2 Mesin*) yang tinggal diedit angkanya.
+### 2. Mode Input Hybrid (Sederhana & Lanjutan)
+* **Mode Sederhana (Default):**
+  * **Template Siap Pakai:** `1 Operator · 1 Mesin`, `1 Operator · 2 Mesin`, `2 Operator · 2 Mesin`, atau `Mulai Kosong`.
+  * **Tambah Cepat:** Pilih pelaku kerja, jenis aktivitas, aturan waktu mulai (*setelah pelaku ini*, *setelah semua*, *detik ke-0*, atau *manual*), serta tombol durasi cepat `-5 / -1 / +1 / +5`.
+  * **Daftar Langkah Interaktif:** Kartu langkah kerja dapat digeser (*drag-and-drop*) untuk menukar urutan dan disesuaikan durasinya langsung.
+* **Mode Lanjutan (Teknik Industri):**
+  * Mendukung hingga **20 Operator** dan **20 Mesin**.
+  * **Multi-Cycle:** Menampilkan dan mengedit hingga **20 siklus** sekaligus dengan pengaturan waktu mulai masing-masing siklus (*overlap*) serta tombol **Salin Siklus Sebelumnya**.
+  * **Tabel Input Presisi:** Pengeditan langsung mulai dan durasi tiap langkah kerja dalam format tabel.
 
-### 3. Asisten Pintar ("Auto-Check" & Rekomendasi)
-Aplikasi otomatis menghitung dan memberikan saran dalam bahasa yang mudah dipahami:
-* **Deteksi Waktu Menganggur:** Otomatis menyoroti bagian abu-abu terpanjang dengan pesan seperti: *"Operator menganggur 15 detik saat mesin jalan. Coba pindahkan aktivitas persiapan ke waktu ini."*
-* **Simulasi "Bagaimana Jika?" (Before vs After):** Fitur duplikasi skenario untuk membandingkan kondisi sebelum dan sesudah perbaikan secara berdampingan.
+### 3. Tiga Format Grafik & Interaksi Langsung
+* **Grafik Vertikal (Atas ke Bawah):** Tarik balok ke atas/bawah untuk menggeser waktu mulai, atau tarik tepi bawah balok untuk mengubah durasi.
+* **Timeline Horizontal:** Menampilkan jalur kronologis per pelaku kerja untuk satu maupun banyak siklus.
+* **Tabel Angka:** Ringkasan waktu kerja aktif, waktu menganggur, dan persentase kesibukan per pelaku kerja serta daftar langkah kerja.
+* Mendukung kontrol **Zoom** (`50%`–`300%`) dan pembacaan otomatis 3 KPI utama (**Total Waktu 1 Siklus**, **Kesibukan Operator**, **Kesibukan Mesin**) beserta estimasi kapasitas (`unit/jam`).
 
-### 4. Laporan 1-Klik
-* **Export ke PDF / Gambar (PNG):** Langsung siap cetak untuk ditempel di papan informasi lini produksi (*Gemba Board*).
-* **Export / Import Excel (CSV):** Untuk menyimpan data mentah atau dibagikan ke rekan kerja tanpa perlu instalasi *database*.
+### 4. Fitur Analisis, Pengukuran Lapangan & Panduan
+* **Kotak Saran Kaizen & Deteksi Otomatis:** Mendeteksi bagian menganggur terpanjang dan jadwal yang bentrok, lengkap dengan saran perbaikan.
+* **Simulasi Before vs After:** Menyimpan kondisi awal (*Before*) dan membandingkan selisih efisiensi serta kapasitas dengan kondisi sesudah perbaikan (*After*).
+* **Stopwatch Lapangan (Time Study):** Mencatat durasi aktivitas langsung saat mengamati operator/mesin di lini produksi dan mengirimkannya ke grafik dalam sekali klik.
+* **Proyek Tersimpan (`LocalStorage`):** Perubahan tersimpan otomatis di browser dan mendukung penyimpanan banyak skenario proses.
+* **Panduan Penggunaan Terintegrasi:** Tersedia tab **Panduan** di dalam aplikasi berisi tutorial langkah demi langkah.
 
----
-
-## 🖥️ Desain Antarmuka (UI/UX)
-
-Aplikasi dirancang menggunakan tata letak **1 Layar Penuh (Single-Screen Workspace)** agar pengguna tidak tersesat di banyak menu:
-
-1. **Panel Atas (Header & Ringkasan Otomatis):**
-   * Judul Proyek & Nama Proses.
-   * 3 Kartu Angka Besar: **Total Waktu 1 Siklus (detik)**, **Kesibukan Operator (%)**, dan **Kesibukan Mesin (%)**.
-2. **Panel Kiri (Form Input Sederhana):**
-   * Tombol besar `+ Tambah Langkah Kerja`.
-   * Pilihan tipe aktor (`👤 Operator` / `⚙️ Mesin 1` / `⚙️ Mesin 2`).
-   * Input nama kegiatan & durasi detik (dengan tombol `+1s` / `-1s`).
-3. **Panel Tengah/Kanan (Kanvas Grafik Interaktif):**
-   * Sumbu vertikal menunjukkan waktu (detik ke-0 sampai selesai) yang berjalan otomatis ke bawah.
-   * Kolom berdampingan untuk setiap Operator dan Mesin sehingga waktu tunggu langsung terlihat sejajar.
-4. **Panel Bawah (Kotak Saran Kaizen):**
-   * Menampilkan ringkasan potensi penghematan waktu secara otomatis.
+### 5. Ekspor & Impor Laporan
+* **Export PNG:** Mengunduh gambar sesuai format tampilan grafik yang sedang dipilih (*Grafik Vertikal*, *Timeline Horizontal*, atau *Tabel Angka*).
+* **Export PDF:** Membuat dan mengunduh file `.pdf` siap cetak secara langsung sesuai tampilan grafik aktif.
+* **Export / Import CSV:** File CSV mencakup ringkasan KPI, matriks visual grafik (`MATRIKS GRAFIK VERTIKAL` atau `MATRIKS TIMELINE HORIZONTAL`), ringkasan pelaku kerja, dan tabel `DATA LANGKAH KERJA` yang kompatibel untuk diimpor kembali.
+* **Export Excel (`.xls`):** Laporan Excel bergrafik warna (*rowspan* vertikal atau *colspan* horizontal sesuai format grafik) beserta tabel ringkasan dan daftar langkah kerja.
+* **Unduh / Muat JSON (Mode Lanjutan):** Cadangan penuh seluruh siklus dan konfigurasi proyek.
 
 ---
 
-## ⚙️ Alur Penggunaan (3 Langkah Mudah)
+## 💻 Cara Menjalankan di Komputer Lokal
 
-1. **Pilih Setup:** Tentukan berapa jumlah Operator dan Mesin yang ingin diamati.
-2. **Masukkan Urutan Kerja:** Ketik nama aktivitas (contoh: *"Pasang part ke jig"*) dan berapa detiknya. Grafik akan langsung tergambar otomatis.
-3. **Evaluasi & Simpan:** Lihat area abu-abu (waktu tunggu), geser aktivitas jika memungkinkan, lalu klik **Simpan Gambar / PDF**.
+Aplikasi ini dikonfigurasi menggunakan **port tetap `4800`** untuk pemakaian lokal (menghindari port `3000`, `3001`, dan `4500`).
+
+### Opsi 1 — Windows (Sekali Klik dengan `.bat`)
+1. Pastikan **Node.js** (v18 atau lebih baru) sudah terpasang.
+2. Klik ganda file **`start-easymmc.bat`**.
+3. Skrip otomatis memeriksa Node.js, menjalankan `npm install` jika belum ada, menyalakan server di port **`4800`**, dan membuka `http://localhost:4800` di browser.
+
+### Opsi 2 — Terminal (Windows / macOS / Linux)
+```bash
+npm install
+npm run local
+```
+Lalu buka browser ke: `http://localhost:4800`
+
+* Untuk menjalankan dengan port kustom lain:
+  ```bash
+  node server.js --port=5050
+  ```
+* Untuk menjalankan dengan port default (`3000` atau `PORT` environment variable):
+  ```bash
+  npm start
+  ```
+
+### Opsi 3 — Tanpa Node.js (Alternatif Statis)
+Seluruh logika kalkulasi, grafik, ekspor, dan penyimpanan berjalan di sisi browser:
+* Buka file `index.html` langsung di browser, atau jalankan server statis seperti:
+  ```bash
+  python -m http.server 4800
+  ```
 
 ---
 
-## 🛠️ Rekomendasi Arsitektur Teknis (Ringan & Tanpa Ribet)
+## 📁 Struktur Berkas Proyek
 
-Agar aplikasi bisa langsung dibuka di komputer pabrik mana saja tanpa perlu instalasi rumit (*zero-install*):
-
-* **Frontend:** HTML5, Tailwind CSS (tampilan bersih & tombol besar), Vanilla JavaScript / Alpine.js (ringan dan responsif).
-* **Visualisasi Grafik:** HTML5 Canvas / SVG kustom atau pustaka ringan seperti Chart.js / ApexCharts (mode *timeline*).
-* **Penyimpanan Data:** `LocalStorage` browser (data otomatis tersimpan di komputer pengguna meski browser ditutup) + fitur unduh file `.json` / `.xlsx` untuk cadangan (*backup*).
-* **Deployment:** Dapat dijalankan secara *offline* (cukup klik ganda file `index.html`) maupun di-hosting di server internal perusahaan.
-
----
-
-## 🚀 Roadmap Pengembangan
-
-* [x] **Tahap 1 (MVP):** Input aktivitas 1 Operator & maksimal 3 Mesin, kalkulasi otomatis persentase sibuk/menganggur, dan export gambar PNG.
-* [ ] **Tahap 2:** Fitur *Drag-and-Drop* urutan aktivitas dan perbandingan *Before vs After* dalam satu layar.
-* [ ] **Tahap 3:** Stopwatch bawaan di dalam aplikasi (pengguna tinggal klik tombol *Mulai/Selesai* sambil mengamati operator di lapangan, waktu langsung masuk ke grafik).
+* `index.html` — Struktur halaman utama, panel input, area grafik, tab Before vs After, Stopwatch, Proyek Tersimpan, dan Panduan.
+* `styles.css` — Tata letak, tema warna, gaya komponen grafik vertikal/horizontal, dan tampilan responsif.
+* `script.js` — Logika kalkulasi siklus & utilisasi, interaksi drag-and-drop/resize, Kaizen advisor, stopwatch, `LocalStorage`, serta generator ekspor PNG, PDF, CSV, Excel, dan JSON.
+* `server.js` — Server statis Express ringan dengan dukungan `--port` dan `process.env.PORT`.
+* `package.json` — Konfigurasi dependensi (`express`) dan skrip `dev`, `start`, `local`, `build`, `lint`.
+* `start-easymmc.bat` — Skrip peluncur instan untuk Windows pada port tetap `4800`.
