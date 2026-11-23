@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "easymmc_state_v1";
+  const SESSION_KEY = "easymmc_session_v1";
   const PROJECTS_KEY = "easymmc_projects_v1";
   const BASE_PX_PER_UNIT = 24;
   const MIN_ZOOM = 0.5;
@@ -67,7 +68,7 @@
       ]
     },
     "blank": {
-      processName: "Proses Baru",
+      processName: "",
       timeUnit: "detik",
       cycleTime: 60,
       cycleCount: 1,
@@ -78,7 +79,7 @@
   };
 
   const state = {
-    processName: "Proses Bubut Part A (1 Operator · 1 Mesin)",
+    processName: "",
     timeUnit: "detik",
     cycleTime: 60,
     cycleCount: 1,
@@ -183,9 +184,14 @@
 
   function init() {
     bindEvents();
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup errors
+    }
     const restored = loadStateFromStorage();
     if (!restored) {
-      applyTemplate("1op-1mc", { silent: true });
+      applyTemplate("blank", { silent: true });
     } else {
       syncInputsFromState();
       renderAll();
@@ -809,7 +815,7 @@
     const metrics = computeMetrics(state);
     const unitLabel = state.timeUnit;
 
-    el.projectHeading.textContent = state.processName.trim() || "Proyek Man-Machine Chart";
+    el.projectHeading.textContent = state.processName.trim() || "Man-Machine Chart Baru";
     el.projectMeta.textContent = `${state.humanCount} Operator · ${state.machineCount} Mesin · Satuan ${capitalize(unitLabel)}`;
 
     el.kpiCycleTime.textContent = `${formatNumber(metrics.cycleTime)} ${unitLabel}`;
@@ -1414,6 +1420,17 @@
     const unit = state.timeUnit;
     const insights = [];
 
+    if (!activities.length) {
+      el.kaizenInsights.innerHTML = `
+        <article class="insight-item is-opportunity">
+          <span class="insight-label">Siap Digunakan</span>
+          <strong class="insight-title">Lembar kerja masih bersih (kosong)</strong>
+          <p class="insight-desc">Tambahkan langkah kerja di panel kiri, pilih contoh Template, atau klik Import JSON / Import CSV untuk melanjutkan data sebelumnya.</p>
+        </article>
+      `;
+      return;
+    }
+
     const resources = getResources();
     resources.forEach((res) => {
       const list = activities
@@ -1672,7 +1689,7 @@
 
   function saveStateToStorage() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
         ...getSerializableState(),
         uiMode: state.uiMode,
         chartFormat: state.chartFormat,
@@ -1686,7 +1703,7 @@
 
   function loadStateFromStorage() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = sessionStorage.getItem(SESSION_KEY);
       if (!raw) return false;
       const parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.cycles)) return false;
@@ -2403,8 +2420,12 @@
     const cycleCount = state.uiMode === "advanced" ? Math.max(1, state.cycleCount) : 1;
 
     const rows = [
-      ["RINGKASAN PROSES", state.processName || "EasyMMC"],
+      ["RINGKASAN PROSES", state.processName || "Man-Machine Chart"],
       ["Target 1 Siklus", `${formatNumber(metrics.cycleTime)} ${unit}`],
+      ["Satuan Waktu", unit],
+      ["Jumlah Operator", state.humanCount],
+      ["Jumlah Mesin", state.machineCount],
+      ["Jumlah Siklus", cycleCount],
       ["Kesibukan Operator", `${formatNumber(metrics.humanUtil)}%`],
       ["Kesibukan Mesin", `${formatNumber(metrics.machineUtil)}%`],
       ["Kapasitas Produksi", `${formatNumber(metrics.unitsPerHour)} unit/jam`],
@@ -2527,17 +2548,27 @@
         const lines = String(reader.result || "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
         if (lines.length < 2) throw new Error("Kosong");
 
+        const meta = {};
+        for (let i = 0; i < lines.length; i += 1) {
+          const cols = parseCsvLine(lines[i]);
+          if (cols[0] === "Siklus" && cols[1] === "Urut" && cols[2] === "Aktivitas") break;
+          if (cols.length >= 2) meta[cols[0]] = cols[1];
+        }
+
         let startIdx = lines.findIndex((line) => {
           const cols = parseCsvLine(line);
           return cols[0] === "Siklus" && cols[1] === "Urut" && cols[2] === "Aktivitas";
         });
         if (startIdx < 0) startIdx = 0;
 
-        const parsedActivities = [];
+        const cycleMap = new Map();
+        let totalCount = 0;
         for (let i = startIdx + 1; i < lines.length; i += 1) {
           const cols = parseCsvLine(lines[i]);
           if (cols.length < 8 || isNaN(Number(cols[6]))) continue;
-          parsedActivities.push(normalizeActivity({
+          const cycIdx = Math.max(0, (Math.round(Number(cols[0])) || 1) - 1);
+          if (!cycleMap.has(cycIdx)) cycleMap.set(cycIdx, []);
+          cycleMap.get(cycIdx).push(normalizeActivity({
             name: cols[2],
             category: cols[3],
             resourceName: cols[4],
@@ -2545,11 +2576,52 @@
             start: Number(cols[6]) || 0,
             duration: Number(cols[7]) || 1
           }));
+          totalCount += 1;
         }
-        if (!parsedActivities.length) throw new Error("Format tidak cocok");
-        state.cycles[state.activeCycleIndex].activities = parsedActivities;
+        if (!totalCount) throw new Error("Format tidak cocok");
+
+        if (meta["RINGKASAN PROSES"]) {
+          state.processName = meta["RINGKASAN PROSES"] === "Man-Machine Chart" ? "" : meta["RINGKASAN PROSES"];
+        }
+        if (meta["Satuan Waktu"] === "menit" || meta["Satuan Waktu"] === "detik") {
+          state.timeUnit = meta["Satuan Waktu"];
+        }
+        if (meta["Target 1 Siklus"]) {
+          const parsedCycle = parseFloat(meta["Target 1 Siklus"]);
+          if (parsedCycle > 0) state.cycleTime = parsedCycle;
+        }
+        if (meta["Jumlah Operator"] !== undefined && !isNaN(Number(meta["Jumlah Operator"]))) {
+          state.humanCount = Math.min(20, Math.max(0, Math.round(Number(meta["Jumlah Operator"]))));
+        }
+        if (meta["Jumlah Mesin"] !== undefined && !isNaN(Number(meta["Jumlah Mesin"]))) {
+          state.machineCount = Math.min(20, Math.max(0, Math.round(Number(meta["Jumlah Mesin"]))));
+        }
+
+        const maxCycleIdx = Math.max(...cycleMap.keys());
+        const importedCycleCount = meta["Jumlah Siklus"]
+          ? Math.min(20, Math.max(maxCycleIdx + 1, Math.round(Number(meta["Jumlah Siklus"]) || 1)))
+          : Math.min(20, maxCycleIdx + 1);
+
+        if (cycleMap.size > 1 || importedCycleCount > 1) {
+          state.cycleCount = importedCycleCount;
+          state.cycles = Array.from({ length: importedCycleCount }, (_, idx) => ({
+            start: idx * state.cycleTime,
+            activities: cycleMap.get(idx) || []
+          }));
+          if (importedCycleCount > 1) state.uiMode = "advanced";
+        } else {
+          const singleActivities = cycleMap.get(0) || [...cycleMap.values()][0] || [];
+          if (meta["RINGKASAN PROSES"]) {
+            state.cycleCount = 1;
+            state.cycles = [{ start: 0, activities: singleActivities }];
+          } else {
+            state.cycles[state.activeCycleIndex].activities = singleActivities;
+          }
+        }
+        state.activeCycleIndex = 0;
+        syncInputsFromState();
         renderAll();
-        showToast(`${parsedActivities.length} langkah kerja berhasil diimpor dari CSV.`);
+        showToast(`${totalCount} langkah kerja berhasil diimpor dari CSV.`);
       } catch {
         showToast("File CSV tidak valid. Gunakan format hasil Export CSV EasyMMC.", true);
       } finally {

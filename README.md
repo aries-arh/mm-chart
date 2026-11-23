@@ -32,15 +32,15 @@
 * **Kotak Saran Kaizen & Deteksi Otomatis:** Mendeteksi bagian menganggur terpanjang dan jadwal yang bentrok, lengkap dengan saran perbaikan.
 * **Simulasi Before vs After:** Menyimpan kondisi awal (*Before*) dan membandingkan selisih efisiensi serta kapasitas dengan kondisi sesudah perbaikan (*After*).
 * **Stopwatch Lapangan (Time Study):** Mencatat durasi aktivitas langsung saat mengamati operator/mesin di lini produksi dan mengirimkannya ke grafik dalam sekali klik.
-* **Proyek Tersimpan (`LocalStorage`):** Perubahan tersimpan otomatis di browser dan mendukung penyimpanan banyak skenario proses.
+* **Mulai Bersih (*Clean Start*) & Proyek Tersimpan:** Setiap pembukaan aplikasi di browser/tab baru selalu mulai dalam keadaan bersih (*clean*). Draft sesi berjalan hanya disimpan sementara pada tab aktif (`sessionStorage`), sedangkan banyak skenario dapat disimpan secara eksplisit di tab **Proyek Tersimpan** (`LocalStorage`).
 * **Panduan Penggunaan Terintegrasi:** Tersedia tab **Panduan** di dalam aplikasi berisi tutorial langkah demi langkah.
 
 ### 5. Ekspor & Impor Laporan
 * **Export PNG:** Mengunduh gambar sesuai format tampilan grafik yang sedang dipilih (*Grafik Vertikal*, *Timeline Horizontal*, atau *Tabel Angka*).
 * **Export PDF:** Membuat dan mengunduh file `.pdf` siap cetak secara langsung sesuai tampilan grafik aktif.
-* **Export / Import CSV:** File CSV mencakup ringkasan KPI, matriks visual grafik (`MATRIKS GRAFIK VERTIKAL` atau `MATRIKS TIMELINE HORIZONTAL`), ringkasan pelaku kerja, dan tabel `DATA LANGKAH KERJA` yang kompatibel untuk diimpor kembali.
+* **Export / Import CSV:** File CSV mencakup ringkasan metadata proses, matriks visual grafik (`MATRIKS GRAFIK VERTIKAL` atau `MATRIKS TIMELINE HORIZONTAL`), ringkasan pelaku kerja, dan tabel `DATA LANGKAH KERJA` yang dapat diimpor kembali untuk melanjutkan pekerjaan.
 * **Export Excel (`.xls`):** Laporan Excel bergrafik warna (*rowspan* vertikal atau *colspan* horizontal sesuai format grafik) beserta tabel ringkasan dan daftar langkah kerja.
-* **Unduh / Muat JSON (Mode Lanjutan):** Cadangan penuh seluruh siklus dan konfigurasi proyek.
+* **Simpan / Import JSON (Semua Mode):** Cadangan penuh seluruh pengaturan proses, pelaku, dan seluruh siklus untuk melanjutkan pekerjaan di browser atau komputer mana saja.
 
 ---
 

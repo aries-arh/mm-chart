@@ -34,7 +34,7 @@
     <section class="kpi-strip" aria-label="Ringkasan Siklus Kerja">
       <div class="kpi-project-bar">
         <div class="kpi-project-title">
-          <h1 id="projectHeading">Proses Bubut &amp; Periksa Part A</h1>
+          <h1 id="projectHeading">Man-Machine Chart Baru</h1>
           <p id="projectMeta" class="muted-meta">1 Operator · 1 Mesin · Satuan Detik</p>
         </div>
         <div class="mode-switch-wrap" role="group" aria-label="Pilih Mode Tampilan Input">
@@ -247,8 +247,8 @@
               <button type="button" id="newCalculationBtn" class="btn-ghost">Reset Kosong</button>
               <button type="button" id="importCsvBtn" class="btn-secondary">Import CSV</button>
               <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden>
-              <button type="button" id="saveSimulationBtn" class="btn-secondary is-advanced-only is-hidden">Unduh JSON</button>
-              <button type="button" id="loadSimulationBtn" class="btn-secondary is-advanced-only is-hidden">Muat JSON</button>
+              <button type="button" id="saveSimulationBtn" class="btn-secondary">Simpan JSON</button>
+              <button type="button" id="loadSimulationBtn" class="btn-secondary">Import JSON</button>
               <input id="simulationFileInput" type="file" accept="application/json,.json" hidden>
             </div>
           </form>
@@ -438,7 +438,7 @@
               <span class="guide-step-num tabular-nums">Langkah 01</span>
               <h4>Pengaturan Dasar &amp; Template</h4>
               <ol>
-                <li>Pilih template siap pakai (<strong>1 Operator · 1 Mesin</strong>, <strong>1 Operator · 2 Mesin</strong>, atau <strong>2 Operator · 2 Mesin</strong>), atau klik <strong>Mulai Kosong</strong>.</li>
+                <li>Aplikasi selalu terbuka dalam keadaan bersih (kosong). Anda dapat langsung mengisi data baru, atau memilih template contoh (<strong>1 Operator · 1 Mesin</strong>, <strong>1 Operator · 2 Mesin</strong>, <strong>2 Operator · 2 Mesin</strong>).</li>
                 <li>Isi <strong>Nama Proses</strong>, <strong>Jumlah Operator</strong>, <strong>Jumlah Mesin</strong>, dan <strong>Target Waktu 1 Siklus</strong> (misalnya 60 detik).</li>
                 <li>Klik ikon <strong>?</strong> di sebelah label bila membutuhkan penjelasan istilah.</li>
               </ol>
@@ -526,15 +526,56 @@
             </article>
 
             <article class="guide-feature-card">
-              <h4>Simpan Proyek &amp; Export Laporan</h4>
-              <p>Data aktif tersimpan otomatis di browser. Gunakan <strong>Simpan Proyek</strong> untuk menyimpan banyak skenario di tab <strong>Proyek Tersimpan</strong>, serta gunakan tombol <strong>Export PNG</strong> (untuk papan Gemba), <strong>Export/Import CSV</strong>, atau <strong>Print / PDF</strong>.</p>
+              <h4>Proyek Tersimpan di Browser</h4>
+              <p>Bila ingin menyimpan beberapa skenario di komputer yang sama tanpa mengunduh file, klik <strong>Simpan Proyek</strong> di pojok kanan atas dan kelola daftarnya di tab <strong>Proyek Tersimpan</strong>.</p>
               <button type="button" class="btn-secondary" data-guide-go="projects">Lihat Proyek Tersimpan</button>
             </article>
 
             <article class="guide-feature-card">
               <h4>Mode Lanjutan (Teknik Industri)</h4>
-              <p>Klik sakelar <strong>Mode Lanjutan</strong> di kanan atas ringkasan bila perlu mengatur <strong>Multi-Cycle</strong> (hingga 20 siklus), <strong>Waktu Mulai Siklus</strong> yang tumpang tindih, tabel input presisi, <strong>Timeline Horizontal</strong>, serta ekspor <strong>Excel (.xls)</strong> dan backup <strong>JSON</strong>.</p>
+              <p>Klik sakelar <strong>Mode Lanjutan</strong> di kanan atas ringkasan bila perlu mengatur <strong>Multi-Cycle</strong> (hingga 20 siklus), <strong>Waktu Mulai Siklus</strong> yang tumpang tindih, tabel input presisi, dan <strong>Timeline Horizontal</strong>.</p>
               <button type="button" class="btn-secondary" data-guide-go="workspace">Coba di Editor</button>
+            </article>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>Bagian 4 · Mulai Bersih, Simpan File &amp; Lanjutkan Pekerjaan (Import / Export)</h3>
+          <div class="guide-steps-grid">
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Clean Start</span>
+              <h4>Aplikasi Selalu Mulai Bersih</h4>
+              <ol>
+                <li>Setiap kali dibuka di web browser atau tab baru, data selalu dalam keadaan <strong>bersih (kosong)</strong> agar tidak tercampur data lama atau contoh.</li>
+                <li>Refresh halaman (<em>F5</em>) pada tab yang sama tetap menjaga pekerjaan sementara Anda, sedangkan menutup tab/browser akan mereset kembali menjadi bersih.</li>
+              </ol>
+            </article>
+
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Simpan</span>
+              <h4>Simpan Pekerjaan Sebelum Menutup</h4>
+              <ol>
+                <li>Klik <strong>Simpan JSON</strong> di bagian bawah panel kiri untuk mengunduh file cadangan lengkap (nama proses, pelaku, target siklus, dan seluruh siklus).</li>
+                <li>Atau klik <strong>Export CSV</strong> di kanan atas grafik bila ingin menyimpan dalam format tabel sekaligus bisa diimpor ulang.</li>
+              </ol>
+            </article>
+
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Lanjutkan</span>
+              <h4>Import File untuk Melanjutkan</h4>
+              <ol>
+                <li>Buka aplikasi di browser atau komputer mana saja dalam keadaan bersih.</li>
+                <li>Klik <strong>Import JSON</strong> atau <strong>Import CSV</strong> di bagian bawah panel kiri, lalu pilih file simpanan Anda sebelumnya untuk langsung melanjutkan.</li>
+              </ol>
+            </article>
+
+            <article class="guide-step-card">
+              <span class="guide-step-num tabular-nums">Laporan</span>
+              <h4>Export PNG, PDF &amp; Excel</h4>
+              <ol>
+                <li>Pilih format tampilan di atas grafik (<strong>Grafik Vertikal</strong>, <strong>Timeline Horizontal</strong>, atau <strong>Tabel Angka</strong>).</li>
+                <li>Klik <strong>Export PNG</strong>, <strong>Export PDF</strong>, atau <strong>Export Excel</strong> — hasil unduhan otomatis mengikuti format grafik yang sedang aktif.</li>
+              </ol>
             </article>
           </div>
         </div>
