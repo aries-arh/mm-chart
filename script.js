@@ -597,7 +597,7 @@
     const category = el.quickCategory.value;
     const defaultLabel = CATEGORY_META[category]?.label || "Aktivitas baru";
     const name = el.quickName.value.trim() || defaultLabel;
-    const duration = Math.max(0.5, Number(el.quickDuration.value) || 5);
+    const duration = Math.max(0.1, Number(el.quickDuration.value) || 5);
     const activities = getActiveCycle().activities;
 
     let start = 0;
@@ -618,8 +618,8 @@
       category,
       resourceType,
       resourceName,
-      start: roundToHalf(start),
-      duration: roundToHalf(duration)
+      start: Math.round(start * 100) / 100,
+      duration: Math.round(duration * 100) / 100
     });
 
     el.quickName.value = "";
@@ -969,15 +969,12 @@
         target.duration = Math.max(0.5, Math.round((target.duration + delta) * 100) / 100);
         const actualDelta = target.duration - prevDur;
 
-        let expectedStart = target.start + prevDur;
+        const shiftedEnds = [target.start + prevDur];
         for (let j = idx + 1; j < list.length; j += 1) {
-          if (
-            list[j].resourceType === target.resourceType &&
-            list[j].resourceName === target.resourceName &&
-            Math.abs(list[j].start - expectedStart) < 0.05
-          ) {
-            expectedStart = list[j].start + list[j].duration;
-            list[j].start = Math.max(0, Math.round((list[j].start + actualDelta) * 100) / 100);
+          const item = list[j];
+          if (shiftedEnds.some((endVal) => Math.abs(item.start - endVal) < 0.05)) {
+            shiftedEnds.push(item.start + item.duration);
+            item.start = Math.max(0, Math.round((item.start + actualDelta) * 100) / 100);
           }
         }
         renderAll();

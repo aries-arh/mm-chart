@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261122-2">
+  <link rel="stylesheet" href="styles.css?v=20261122-3">
 </head>
 <body>
   <header class="topbar" role="banner">
@@ -187,8 +187,8 @@
                   <label class="field">
                     <span>Aturan Waktu Mulai</span>
                     <select id="quickStartMode">
-                      <option value="after-actor">Setelah kegiatan terakhir pelaku ini</option>
-                      <option value="after-all">Setelah kegiatan terakhir semua</option>
+                      <option value="after-all" selected>Setelah kegiatan terakhir semua (Berurutan)</option>
+                      <option value="after-actor">Setelah kegiatan terakhir pelaku ini (Paralel)</option>
                       <option value="zero">Mulai dari detik ke-0</option>
                       <option value="manual">Atur manual</option>
                     </select>
@@ -595,6 +595,6 @@
     </div>
   </dialog>
 
-  <script src="script.js?v=20261122-2"></script>
+  <script src="script.js?v=20261122-3"></script>
 </body>
 </html>
